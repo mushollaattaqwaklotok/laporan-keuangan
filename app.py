@@ -15,7 +15,7 @@ AUTHORIZED_PASSWORDS = {
     'atmorejo': 'password5',
 }
 
-# Function to verify user credentials
+# Fungsi untuk memverifikasi login pengguna
 def verify_password(username, password):
     # Hashing the password and comparing it to the stored password
     hashed_password = sha256(password.encode('utf-8')).hexdigest()
@@ -49,7 +49,18 @@ def add_transaction(tipe, jumlah, deskripsi, tanggal):
 
 # Fungsi untuk mengonversi format tanggal sesuai dengan format dd/mm/yyyy
 def convert_date_format(df):
-    df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='%d/%m/%Y')
+    # Memeriksa apakah kolom 'Tanggal' ada
+    if 'Tanggal' not in df.columns:
+        st.error("Kolom 'Tanggal' tidak ditemukan dalam data.")
+        return df
+
+    try:
+        # Mengonversi kolom 'Tanggal' ke tipe datetime dengan format dd/mm/yyyy
+        df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='%d/%m/%Y', errors='raise')
+    except Exception as e:
+        st.error(f"Error saat mengonversi format tanggal: {e}")
+        # Menampilkan data yang bermasalah
+        st.write(df.head())
     return df
 
 # Fungsi untuk menampilkan ringkasan keuangan
