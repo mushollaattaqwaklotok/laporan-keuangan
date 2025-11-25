@@ -18,7 +18,7 @@ def display_organization_info():
 
     st.sidebar.subheader("Kontak")
     st.sidebar.write("Email: mushollaattaqwaklotok@gmail.com")
-    st.sidebar.write("Facebook: Musholla At Taqwa")
+    st.sidebar.write("Laporan Keuangan: https://laporan-attaqwa.streamlit.app/")
 
 # Fungsi untuk menambahkan transaksi baru
 def add_transaction(tipe, jumlah, deskripsi, tanggal):
