@@ -46,6 +46,26 @@ def convert_date_format(df):
     df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='%d/%m/%Y')
     return df
 
+# Fungsi untuk menampilkan ringkasan keuangan
+def display_financial_summary(df):
+    total_income = df[df['Tipe'] == 'Uang Masuk']['Jumlah'].sum()
+    total_expenses = df[df['Tipe'] == 'Uang Keluar']['Jumlah'].sum()
+    operational_costs = df[df['Tipe'] == 'Operasional']['Jumlah'].sum()
+    balance = total_income - total_expenses
+
+    st.subheader("Ringkasan Keuangan")
+    st.write(f"**Total Pemasukan**: Rp {total_income:,.0f}")
+    st.write(f"**Total Pengeluaran**: Rp {total_expenses:,.0f}")
+    st.write(f"**Biaya Operasional**: Rp {operational_costs:,.0f}")
+    st.write(f"**Saldo Terakhir**: Rp {balance:,.0f}")
+
+# Fungsi untuk menampilkan transaksi terakhir
+def display_recent_transactions(df):
+    st.subheader("10 Transaksi Terakhir")
+    # Menampilkan 10 transaksi terakhir
+    recent_transactions = df.sort_values(by='Tanggal', ascending=False).head(10)
+    st.write(recent_transactions[['Tipe', 'Jumlah', 'Deskripsi', 'Tanggal']])
+
 # Fungsi untuk membuat grafik pemasukan dan pengeluaran
 def plot_transactions(df):
     df['Tanggal'] = pd.to_datetime(df['Tanggal'])
@@ -84,6 +104,12 @@ def main():
     except FileNotFoundError:
         st.write("Belum ada data transaksi.")
         return
+
+    # Menampilkan ringkasan keuangan
+    display_financial_summary(df)
+
+    # Menampilkan transaksi terakhir
+    display_recent_transactions(df)
 
     # Filter Transaksi
     st.subheader("Filter Transaksi")
