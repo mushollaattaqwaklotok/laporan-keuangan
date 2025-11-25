@@ -65,6 +65,7 @@ def convert_date_format(df):
 
 # Fungsi untuk menampilkan ringkasan keuangan
 def display_financial_summary(df):
+    st.write("Kolom yang tersedia:", df.columns)  # Menampilkan kolom yang ada dalam DataFrame untuk debugging
     total_income = df[df['Tipe'] == 'Uang Masuk']['Jumlah'].sum()
     total_expenses = df[df['Tipe'] == 'Uang Keluar']['Jumlah'].sum()
     operational_costs = df[df['Tipe'] == 'Operasional']['Jumlah'].sum()
@@ -142,6 +143,7 @@ def main():
     # Menampilkan daftar transaksi
     try:
         df = pd.read_csv('data/data_transaksi.csv')
+        st.write("Kolom dalam CSV:", df.columns)  # Debug: Menampilkan kolom yang ada dalam CSV
         df = convert_date_format(df)
     except FileNotFoundError:
         st.write("Belum ada data transaksi.")
