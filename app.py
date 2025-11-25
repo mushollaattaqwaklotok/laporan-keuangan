@@ -6,7 +6,7 @@ import seaborn as sns
 
 # Menampilkan informasi organisasi di sidebar
 def display_organization_info():
-    st.sidebar.image("https://i.pinimg.com/originals/f8/bf/8a/f8bf8a1221a81747154698816b7c9113.jpg", width=100)  # Ganti dengan URL logo Anda
+    st.sidebar.image("https://example.com/logo.png", width=100)  # Ganti dengan URL logo Anda
     st.sidebar.title("Informasi Organisasi")
     st.sidebar.subheader("Panitia Pembangunan Musholla At Taqwa")
     st.sidebar.write("Lokasi: Dusun Klotok RT.1, Desa Simogirang, Kecamatan Prambon, Kabupaten Sidoarjo 61264")
@@ -18,7 +18,7 @@ def display_organization_info():
 
     st.sidebar.subheader("Kontak")
     st.sidebar.write("Email: mushollaattaqwaklotok@gmail.com")
-    st.sidebar.write("Laporan Keuangan: https://laporan-attaqwa.streamlit.app/")
+    st.sidebar.write("Facebook: Musholla At Taqwa")
 
 # Fungsi untuk menambahkan transaksi baru
 def add_transaction(tipe, jumlah, deskripsi, tanggal):
@@ -50,6 +50,14 @@ def plot_transactions(df):
     ax.set_title('Total Transaksi Per Bulan')
     ax.set_xlabel('Bulan')
     ax.set_ylabel('Jumlah (Rp)')
+    st.pyplot(fig)
+
+# Fungsi untuk menampilkan pie chart untuk kategori transaksi
+def plot_pie_chart(df):
+    category_summary = df.groupby('Tipe').sum()
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.pie(category_summary['Jumlah'], labels=category_summary.index, autopct='%1.1f%%', startangle=90)
+    ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
     st.pyplot(fig)
 
 # Fungsi utama aplikasi
@@ -97,6 +105,10 @@ def main():
     # Menampilkan grafik transaksi
     st.subheader("Grafik Pemasukan dan Pengeluaran")
     plot_transactions(df_filtered)
+
+    # Menampilkan grafik pie untuk kategori transaksi
+    st.subheader("Pembagian Kategori Transaksi")
+    plot_pie_chart(df_filtered)
 
 if __name__ == "__main__":
     main()
