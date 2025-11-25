@@ -40,6 +40,12 @@ def filter_transactions(df, tipe=None, start_date=None, end_date=None):
         df = df[df['Tanggal'] <= end_date]
     return df
 
+# Fungsi untuk mengonversi format tanggal sesuai dengan format dd/mm/yyyy
+def convert_date_format(df):
+    # Mengonversi kolom 'Tanggal' ke format datetime dengan format dd/mm/yyyy
+    df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='%d/%m/%Y')
+    return df
+
 # Fungsi untuk membuat grafik pemasukan dan pengeluaran
 def plot_transactions(df):
     df['Tanggal'] = pd.to_datetime(df['Tanggal'])
@@ -72,6 +78,9 @@ def main():
     # Menampilkan daftar transaksi
     try:
         df = pd.read_csv('data/data_transaksi.csv')
+
+        # Mengonversi format tanggal sesuai dengan format dd/mm/yyyy
+        df = convert_date_format(df)
     except FileNotFoundError:
         st.write("Belum ada data transaksi.")
         return
