@@ -3,6 +3,24 @@ import pandas as pd
 import datetime
 import matplotlib.pyplot as plt
 import seaborn as sns
+from hashlib import sha256
+
+# List of authorized users (5 people)
+AUTHORIZED_USERS = ['ferri_kusuma', 'alfan_fatik', 'sunhadi_prayitno', 'riaji', 'atmorejo']
+AUTHORIZED_PASSWORDS = {
+    'ferri_kusuma': 'password1',
+    'alfan_fatik': 'password2',
+    'sunhadi_prayitno': 'password3',
+    'riaji': 'password4',
+    'atmorejo': 'password5',
+}
+
+# Function to verify user credentials
+def verify_password(username, password):
+    # Hashing the password and comparing it to the stored password
+    hashed_password = sha256(password.encode('utf-8')).hexdigest()
+    stored_password = sha256(AUTHORIZED_PASSWORDS.get(username, '').encode('utf-8')).hexdigest()
+    return hashed_password == stored_password
 
 # Menampilkan informasi organisasi di sidebar
 def display_organization_info():
@@ -28,16 +46,6 @@ def add_transaction(tipe, jumlah, deskripsi, tanggal):
         'Tanggal': [tanggal]
     })
     new_data.to_csv('data/data_transaksi.csv', mode='a', header=False, index=False)
-
-# Fungsi untuk menampilkan transaksi dengan filter
-def filter_transactions(df, tipe=None, start_date=None, end_date=None):
-    if tipe:
-        df = df[df['Tipe'] == tipe]
-    if start_date:
-        df = df[df['Tanggal'] >= start_date]
-    if end_date:
-        df = df[df['Tanggal'] <= end_date]
-    return df
 
 # Fungsi untuk mengonversi format tanggal sesuai dengan format dd/mm/yyyy
 def convert_date_format(df):
@@ -92,6 +100,35 @@ def main():
     st.title("Aplikasi Keuangan Musholla At Taqwa")
     st.markdown("## Visualisasi Transaksi Keuangan")
 
+    # Memverifikasi login
+    st.sidebar.subheader("Login untuk Akses Fitur Edit")
+    username = st.sidebar.text_input("Username")
+    password = st.sidebar.text_input("Password", type='password')
+
+    if username and password:
+        if verify_password(username, password):
+            st.sidebar.success(f"Selamat datang, {username}!")
+            # Tombol untuk tambah, edit, hapus transaksi hanya muncul setelah login
+            action = st.selectbox("Pilih Aksi", ['Tambah Transaksi', 'Edit Transaksi', 'Hapus Transaksi'])
+            if action == 'Tambah Transaksi':
+                transaksi_type = st.selectbox("Pilih Jenis Transaksi", ['Uang Masuk', 'Uang Keluar'])
+                jumlah_input = st.number_input("Jumlah", min_value=0)
+                deskripsi_input = st.text_input("Deskripsi Transaksi")
+                tanggal_input = st.date_input("Tanggal", datetime.date.today())
+                
+                if st.button(f'Tambah {transaksi_type}'):
+                    add_transaction(transaksi_type, jumlah_input, deskripsi_input, tanggal_input)
+                    st.success(f"Transaksi {transaksi_type} berhasil ditambahkan!")
+            elif action == 'Edit Transaksi':
+                # Edit transaksi logic here (if needed)
+                st.write("Fitur edit transaksi belum diterapkan.")
+            elif action == 'Hapus Transaksi':
+                # Hapus transaksi logic here (if needed)
+                st.write("Fitur hapus transaksi belum diterapkan.")
+        else:
+            st.sidebar.error("Username atau Password Salah")
+
+    # Menampilkan daftar transaksi
     try:
         df = pd.read_csv('data/data_transaksi.csv')
         df = convert_date_format(df)
@@ -119,18 +156,6 @@ def main():
     # Menampilkan data transaksi yang sudah difilter
     st.write(f"Menampilkan transaksi dari {start_date} hingga {end_date}")
     st.write(df_filtered)
-
-    # Menambahkan dropdown untuk memilih tipe transaksi
-    st.subheader("Tambah Transaksi Baru")
-    transaksi_type = st.selectbox("Pilih Jenis Transaksi", ['Pilih', 'Uang Masuk', 'Uang Keluar'])
-    if transaksi_type != 'Pilih':
-        jumlah_input = st.number_input("Jumlah", min_value=0)
-        deskripsi_input = st.text_input("Deskripsi Transaksi")
-        tanggal_input = st.date_input("Tanggal", datetime.date.today())
-
-        if st.button(f'Tambah {transaksi_type}'):
-            add_transaction(transaksi_type, jumlah_input, deskripsi_input, tanggal_input)
-            st.success(f"Transaksi {transaksi_type} berhasil ditambahkan!")
 
     # Menampilkan grafik transaksi
     st.subheader("Grafik Pemasukan dan Pengeluaran")
