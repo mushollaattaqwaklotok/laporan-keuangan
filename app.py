@@ -16,9 +16,8 @@ def display_organization_info():
     st.sidebar.write("Koordinator Humas: Riaji")
     st.sidebar.write("Koordinator Penggalangan Dana: Atmorejo")
 
-    st.sidebar.subheader("Kontak")
-    st.sidebar.write("Email: mushollaattaqwaklotok@gmail.com")
-    st.sidebar.write("Facebook: Musholla At Taqwa")
+    st.sidebar.subheader("Laporan Keuangan")
+    st.sidebar.write("[Laporan Keuangan: Musholla At Taqwa](https://laporan-attaqwa.streamlit.app/)")
 
 # Fungsi untuk menambahkan transaksi baru
 def add_transaction(tipe, jumlah, deskripsi, tanggal):
@@ -42,7 +41,6 @@ def filter_transactions(df, tipe=None, start_date=None, end_date=None):
 
 # Fungsi untuk mengonversi format tanggal sesuai dengan format dd/mm/yyyy
 def convert_date_format(df):
-    # Mengonversi kolom 'Tanggal' ke format datetime dengan format dd/mm/yyyy
     df['Tanggal'] = pd.to_datetime(df['Tanggal'], format='%d/%m/%Y')
     return df
 
@@ -62,7 +60,6 @@ def display_financial_summary(df):
 # Fungsi untuk menampilkan transaksi terakhir
 def display_recent_transactions(df):
     st.subheader("10 Transaksi Terakhir")
-    # Menampilkan 10 transaksi terakhir
     recent_transactions = df.sort_values(by='Tanggal', ascending=False).head(10)
     st.write(recent_transactions[['Tipe', 'Jumlah', 'Deskripsi', 'Tanggal']])
 
@@ -95,11 +92,8 @@ def main():
     st.title("Aplikasi Keuangan Musholla At Taqwa")
     st.markdown("## Visualisasi Transaksi Keuangan")
 
-    # Menampilkan daftar transaksi
     try:
         df = pd.read_csv('data/data_transaksi.csv')
-
-        # Mengonversi format tanggal sesuai dengan format dd/mm/yyyy
         df = convert_date_format(df)
     except FileNotFoundError:
         st.write("Belum ada data transaksi.")
@@ -126,16 +120,17 @@ def main():
     st.write(f"Menampilkan transaksi dari {start_date} hingga {end_date}")
     st.write(df_filtered)
 
-    # Menambahkan tombol untuk input transaksi baru
+    # Menambahkan dropdown untuk memilih tipe transaksi
     st.subheader("Tambah Transaksi Baru")
-    tipe_input = st.selectbox("Tipe Transaksi", ['Uang Masuk', 'Uang Keluar', 'Operasional'])
-    jumlah_input = st.number_input("Jumlah", min_value=0)
-    deskripsi_input = st.text_input("Deskripsi Transaksi")
-    tanggal_input = st.date_input("Tanggal", datetime.date.today())
+    transaksi_type = st.selectbox("Pilih Jenis Transaksi", ['Pilih', 'Uang Masuk', 'Uang Keluar'])
+    if transaksi_type != 'Pilih':
+        jumlah_input = st.number_input("Jumlah", min_value=0)
+        deskripsi_input = st.text_input("Deskripsi Transaksi")
+        tanggal_input = st.date_input("Tanggal", datetime.date.today())
 
-    if st.button('Tambah Transaksi'):
-        add_transaction(tipe_input, jumlah_input, deskripsi_input, tanggal_input)
-        st.success("Transaksi berhasil ditambahkan!")
+        if st.button(f'Tambah {transaksi_type}'):
+            add_transaction(transaksi_type, jumlah_input, deskripsi_input, tanggal_input)
+            st.success(f"Transaksi {transaksi_type} berhasil ditambahkan!")
 
     # Menampilkan grafik transaksi
     st.subheader("Grafik Pemasukan dan Pengeluaran")
