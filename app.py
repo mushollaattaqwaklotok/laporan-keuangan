@@ -6,7 +6,7 @@ import seaborn as sns
 
 # Menampilkan informasi organisasi di sidebar
 def display_organization_info():
-    st.sidebar.image("https://example.com/logo.png", width=100)  # Ganti dengan URL logo Anda
+    st.sidebar.image("https://i.pinimg.com/originals/f8/bf/8a/f8bf8a1221a81747154698816b7c9113.jpg", width=100)  # Ganti dengan URL logo Anda
     st.sidebar.title("Informasi Organisasi")
     st.sidebar.subheader("Panitia Pembangunan Musholla At Taqwa")
     st.sidebar.write("Lokasi: Dusun Klotok RT.1, Desa Simogirang, Kecamatan Prambon, Kabupaten Sidoarjo 61264")
