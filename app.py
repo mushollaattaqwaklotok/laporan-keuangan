@@ -17,7 +17,7 @@ def display_organization_info():
     st.sidebar.write("Koordinator Penggalangan Dana: Atmorejo")
 
     st.sidebar.subheader("Kontak")
-    st.sidebar.write("Email: info@musholla-taqwa.com")
+    st.sidebar.write("Email: mushollaattaqwaklotok@gmail.com")
     st.sidebar.write("Facebook: Musholla At Taqwa")
 
 # Fungsi untuk menambahkan transaksi baru
