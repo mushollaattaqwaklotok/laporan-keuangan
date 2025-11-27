@@ -3,20 +3,31 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# ================================
-#   KONFIGURASI
-# ================================
+# ======================================================
+#  KONFIGURASI UTAMA
+# ======================================================
 DATA_FILE = "data/keuangan.csv"
-PANITIA_PASS = "kelas3ku"   # Password panitia (contoh)
+LOG_FILE = "data/log_aktivitas.csv"
+
+# Multi-password untuk panitia
+PANITIA_USERS = {
+    "Ahmad": "ahmad123",
+    "Rini": "rini123",
+    "Ferry": "ferry123",
+    "Hani": "hani123",
+    "Ibnu": "ibnu123",
+    "Bendahara": "bendahara123"
+}
+
 PUBLIK_MODE = "PUBLIK"
 PANITIA_MODE = "PANITIA"
 
-# Buat folder data jika belum ada
+# Pastikan folder data ada
 os.makedirs("data", exist_ok=True)
 
-# ================================
-#   FUNGSI BACA & SIMPAN DATA
-# ================================
+# ======================================================
+#  FUNGSI DATA
+# ======================================================
 def load_data():
     if not os.path.exists(DATA_FILE):
         df = pd.DataFrame(columns=["Tanggal", "Keterangan", "Masuk", "Keluar", "Saldo"])
@@ -26,18 +37,33 @@ def load_data():
 def save_data(df):
     df.to_csv(DATA_FILE, index=False)
 
+def load_log():
+    if not os.path.exists(LOG_FILE):
+        df = pd.DataFrame(columns=["Waktu", "Pengguna", "Aksi", "Detail"])
+        df.to_csv(LOG_FILE, index=False)
+    return pd.read_csv(LOG_FILE)
 
-# ================================
-#   TEMA WARNA NU
-# ================================
+def save_log(user, aksi, detail=""):
+    df = load_log()
+    new_row = {
+        "Waktu": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Pengguna": user,
+        "Aksi": aksi,
+        "Detail": detail
+    }
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    df.to_csv(LOG_FILE, index=False)
+
+# ======================================================
+#  TEMA WARNA NU
+# ======================================================
 st.markdown("""
     <style>
         body { background-color: #ffffff; }
         .main { background-color: #ffffff; }
         .stApp { background-color: #ffffff; }
         h1, h2, h3 { color: #0b6e4f; font-weight: 800; }
-        
-        /* Tombol hijau */
+
         .stButton>button {
             background-color: #0b6e4f;
             color: white;
@@ -50,24 +76,21 @@ st.markdown("""
             color: white;
         }
 
-        /* Input border hijau */
-        .stTextInput>div>div>input,
-        .stNumberInput>div>div>input {
+        .stTextInput input, .stNumberInput input {
             border: 1px solid #0b6e4f !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-
-# ================================
-#   MODE APLIKASI
-# ================================
+# ======================================================
+#  PILIH MODE
+# ======================================================
 st.sidebar.header("📌 Pilih Mode")
-mode = st.sidebar.radio("Mode Aplikasi", [PUBLIK_MODE, PANITIA_MODE])
+mode = st.sidebar.radio("Mode", [PUBLIK_MODE, PANITIA_MODE])
 
-# ================================
-#   MODE PUBLIK
-# ================================
+# ======================================================
+#  MODE PUBLIK
+# ======================================================
 if mode == PUBLIK_MODE:
     st.title("💒 Keuangan Musholla At-Taqwa RT 1 – Publik")
 
@@ -79,7 +102,6 @@ if mode == PUBLIK_MODE:
         st.subheader("📄 Tabel Keuangan")
         st.dataframe(df, use_container_width=True)
 
-        # Tombol download CSV
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Download Data CSV",
@@ -88,26 +110,29 @@ if mode == PUBLIK_MODE:
             "text/csv",
         )
 
-
-# ================================
-#   MODE PANITIA (LOGIN)
-# ================================
+# ======================================================
+#  MODE PANITIA
+# ======================================================
 else:
     st.title("🕌 Panel Panitia – Kelola Keuangan Musholla")
 
-    password = st.sidebar.text_input("Password Panitia", type="password")
+    username = st.sidebar.selectbox("Pilih Nama Panitia", ["-"] + list(PANITIA_USERS.keys()))
+    password = st.sidebar.text_input("Password", type="password")
 
-    if password != PANITIA_PASS:
-        st.warning("Masukkan password panitia.")
+    if username == "-" or password != PANITIA_USERS.get(username):
+        st.warning("Masukkan username & password panitia.")
         st.stop()
 
-    st.success("Login berhasil ✔️")
+    st.success(f"Login berhasil ✔️ (Panitia: {username})")
+
+    # Log login
+    save_log(username, "Login", "Masuk ke panel panitia")
 
     df = load_data()
 
-    # ============================
-    #  FORM INPUT
-    # ============================
+    # -------------------------
+    # FORM TAMBAH DATA
+    # -------------------------
     st.subheader("➕ Tambah Data Baru")
 
     col1, col2 = st.columns(2)
@@ -132,37 +157,50 @@ else:
 
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         save_data(df)
+
+        save_log(username, "Tambah Data", f"{keterangan} | +{masuk} / -{keluar}")
+
         st.success("Data berhasil disimpan!")
 
-
-    # ============================
-    #  TABEL
-    # ============================
+    # -------------------------
+    # TABEL KEUANGAN
+    # -------------------------
     st.subheader("📄 Tabel Keuangan")
     st.dataframe(df, use_container_width=True)
 
-    # ============================
-    #  HAPUS DATA
-    # ============================
+    # -------------------------
+    # HAPUS DATA
+    # -------------------------
     st.subheader("🗑 Hapus Baris Data")
 
     if not df.empty:
-        index_to_delete = st.number_input("Pilih nomor baris (0 - {}):".format(len(df)-1), min_value=0, max_value=len(df)-1, step=1)
+        idx = st.number_input(
+            f"Pilih nomor baris (0 - {len(df)-1})",
+            min_value=0, max_value=len(df)-1, step=1
+        )
 
-        if st.button("Hapus Baris Ini"):
-            df = df.drop(index_to_delete).reset_index(drop=True)
+        if st.button("Hapus Baris"):
+            deleted = df.iloc[idx].to_dict()
+            df = df.drop(idx).reset_index(drop=True)
             save_data(df)
+
+            save_log(username, "Hapus Data", str(deleted))
+
             st.success("Baris berhasil dihapus!")
 
-
-    # ============================
-    #  DOWNLOAD CSV
-    # ============================
+    # -------------------------
+    # DOWNLOAD CSV
+    # -------------------------
     st.subheader("⬇️ Download Data")
+
     csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "Download CSV",
-        csv,
-        "keuangan_musholla.csv",
-        "text/csv",
-    )
+    if st.download_button("Download CSV", csv, "keuangan_musholla.csv", "text/csv"):
+        save_log(username, "Download CSV", "Mengunduh data keuangan")
+
+    # -------------------------
+    # LOG AKTIVITAS
+    # -------------------------
+    st.subheader("📘 Log Aktivitas Panitia")
+
+    log_df = load_log()
+    st.dataframe(log_df, use_container_width=True)
