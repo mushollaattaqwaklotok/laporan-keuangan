@@ -1,221 +1,266 @@
+# === APLIKASI KEUANGAN MUSHOLLA AT-TAQWA RT 1 ===
+# Dibuat oleh ChatGPT untuk Ferri Kusuma
+
 import streamlit as st
 import pandas as pd
-import io
+import os
 from datetime import datetime
+from io import BytesIO
 
 # ==============================
-#  TEMA PUTIH – HIJAU NU
+# KONFIGURASI AWAL
 # ==============================
-def apply_nu_theme():
-    st.markdown("""
-    <style>
-        body {
-            background-color: #ffffff;
-        }
-        .main, .block-container {
-            background-color: #ffffff;
-        }
-        /* Judul NU Hijau */
-        h1, h2, h3, h4 {
-            color: #0f5e3d;
-            font-weight: 700;
-        }
-        .stButton>button {
-            background-color: #0f5e3d !important;
-            color: white !important;
-            border-radius: 6px;
-            padding: 0.5rem 1rem;
-        }
-        .stButton>button:hover {
-            background-color: #0c4b31 !important;
-        }
-        /* Input box */
-        .stTextInput>div>div>input, textarea {
-            border-radius: 6px !important;
-            border: 1px solid #0f5e3d55 !important;
-        }
-        .stSelectbox, .stDateInput {
-            border-radius: 6px !important;
-        }
-        /* Card putih border hijau */
-        .nu-card {
-            padding: 1rem;
-            border-radius: 10px;
-            border: 2px solid #0f5e3d;
-            background: #ffffff;
-            margin-bottom: 1rem;
-        }
-    </style>
-    """, unsafe_allow_html=True)
 
+USERS = {
+    "ferri": "ferri@123",
+    "riki": "ferri@123",
+    "bayu": "ferri@123",
+}
+
+DATA_FILE = "data.csv"
+LOG_FILE = "log.csv"
+BUKTI_FOLDER = "bukti"
+BACKUP_FOLDER = "backup"
+
+# Buat folder jika belum ada
+os.makedirs(BUKTI_FOLDER, exist_ok=True)
+os.makedirs(BACKUP_FOLDER, exist_ok=True)
 
 # ==============================
-# DATABASE SEDERHANA (CSV)
+# FUNGSI DATABASE
 # ==============================
-FILE_DATA = "data_transaksi.csv"
-FILE_LOG = "log_aktivitas.csv"
 
-def init_database():
-    try:
-        pd.read_csv(FILE_DATA)
-    except:
-        df = pd.DataFrame(columns=["tanggal", "jenis", "keterangan", "jumlah", "bukti"])
-        df.to_csv(FILE_DATA, index=False)
+def load_data():
+    if os.path.exists(DATA_FILE):
+        return pd.read_csv(DATA_FILE)
+    else:
+        return pd.DataFrame(columns=["tanggal", "jenis", "keterangan", "jumlah", "panitia", "bukti"])
 
-    try:
-        pd.read_csv(FILE_LOG)
-    except:
-        df = pd.DataFrame(columns=["waktu", "aksi"])
-        df.to_csv(FILE_LOG, index=False)
+def save_data(df):
+    df.to_csv(DATA_FILE, index=False)
+    backup_name = f"{BACKUP_FOLDER}/backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    df.to_csv(backup_name, index=False)
 
+def load_log():
+    if os.path.exists(LOG_FILE):
+        return pd.read_csv(LOG_FILE)
+    else:
+        return pd.DataFrame(columns=["waktu", "panitia", "aksi"])
 
-def save_transaksi(tgl, jenis, ket, jumlah, bukti_name):
-    df = pd.read_csv(FILE_DATA)
-    df.loc[len(df)] = [tgl, jenis, ket, jumlah, bukti_name]
-    df.to_csv(FILE_DATA, index=False)
-
-
-def save_log(aksi):
-    df = pd.read_csv(FILE_LOG)
-    df.loc[len(df)] = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), aksi]
-    df.to_csv(FILE_LOG, index=False)
-
-
-def download_excel(df):
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Laporan")
-    return buffer
-
+def log_action(panitia, aksi):
+    log_df = load_log()
+    new_log = pd.DataFrame({
+        "waktu": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+        "panitia": [panitia],
+        "aksi": [aksi]
+    })
+    log_df = pd.concat([log_df, new_log], ignore_index=True)
+    log_df.to_csv(LOG_FILE, index=False)
 
 # ==============================
-# LOGIN PANITIA
+# DOWNLOAD CSV
 # ==============================
-USERNAME = "ferri"
-PASSWORD = "kelas3ku"
+
+def download_csv(df):
+    output = BytesIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    return output
+
+# ==============================
+# HALAMAN LOGIN
+# ==============================
 
 def login_page():
-    st.title("🔐 Login Panitia")
-    st.markdown("Masukkan username dan password untuk masuk ke sistem.")
+    st.title("Aplikasi Keuangan — Musholla At Taqwa RT.1 Dusun Klotok")
 
-    u = st.text_input("Username")
-    p = st.text_input("Password", type="password")
+    st.subheader("Login (Panitia)")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if u == USERNAME and p == PASSWORD:
-            st.session_state["login"] = True
-            st.session_state["username"] = u
-            save_log(f"Login oleh {u}")
-            st.success("Login berhasil!")
+        if username in USERS and password == USERS[username]:
+            st.session_state["user"] = username
+            st.success(f"Login berhasil sebagai: {username}")
+            st.rerun()
         else:
-            st.error("Username atau password salah.")
-
+            st.error("Username atau password salah")
 
 # ==============================
 # HALAMAN ADMIN
 # ==============================
-def admin_page():
-    st.title("💹 Aplikasi Keuangan — Musholla At-Taqwa RT.1 Klotok")
 
-    df = pd.read_csv(FILE_DATA)
+def admin_page(user):
+
+    st.title(f"🤝 Selamat Datang, {user}")
+
+    df = load_data()
 
     menu = st.sidebar.radio(
         "Menu",
-        ["Kas Masuk", "Kas Keluar", "Rekap Transaksi", "Log Aktivitas", "Logout"]
+        ["Kas Masuk", "Kas Keluar", "Log Aktivitas",
+         "Edit / Hapus Transaksi", "Download Laporan", "Dashboard"]
     )
 
-    # -------------------- KAS MASUK --------------------
+    # ============================
+    # KAS MASUK
+    # ============================
     if menu == "Kas Masuk":
-        st.subheader("📥 Input Kas Masuk")
-        with st.container():
-            st.markdown("<div class='nu-card'>", unsafe_allow_html=True)
 
-            tgl = st.date_input("Tanggal")
-            ket = st.text_input("Keterangan")
-            jumlah = st.number_input("Jumlah (Rp)", min_value=0)
-            bukti = st.file_uploader("Upload Bukti", type=["jpg", "png", "jpeg"])
+        st.subheader("📌 Input Kas Masuk")
 
-            st.markdown("</div>", unsafe_allow_html=True)
+        tgl = st.date_input("Tanggal", datetime.now())
+        ket = st.text_input("Keterangan")
+        jumlah = st.number_input("Jumlah (Rp)", min_value=0)
+        bukti = st.file_uploader("Upload Bukti (opsional)", type=["jpg", "png", "jpeg"])
 
         if st.button("Simpan Kas Masuk"):
-            bukti_name = ""
+            filename = ""
+
             if bukti:
-                bukti_name = f"bukti_{datetime.now().timestamp()}_{bukti.name}"
-                with open(bukti_name, "wb") as f:
-                    f.write(bukti.getbuffer())
+                filename = f"{BUKTI_FOLDER}/{datetime.now().strftime('%Y%m%d%H%M%S')} - {bukti.name}"
+                with open(filename, "wb") as f:
+                    f.write(bukti.read())
 
-            save_transaksi(str(tgl), "Masuk", ket, jumlah, bukti_name)
-            save_log(f"Tambah kas masuk: {jumlah}")
-            st.success("Kas Masuk berhasil disimpan!")
+            new_row = pd.DataFrame({
+                "tanggal": [str(tgl)],
+                "jenis": ["masuk"],
+                "keterangan": [ket],
+                "jumlah": [jumlah],
+                "panitia": [user],
+                "bukti": [filename],
+            })
 
-    # -------------------- KAS KELUAR --------------------
+            df = pd.concat([df, new_row], ignore_index=True)
+            save_data(df)
+
+            log_action(user, f"Menambah kas masuk Rp {jumlah} ({ket})")
+
+            st.success("Kas masuk disimpan!")
+            st.rerun()
+
+    # ============================
+    # KAS KELUAR
+    # ============================
     if menu == "Kas Keluar":
-        st.subheader("📤 Input Kas Keluar")
-        with st.container():
-            st.markdown("<div class='nu-card'>", unsafe_allow_html=True)
 
-            tgl = st.date_input("Tanggal")
-            ket = st.text_input("Keterangan")
-            jumlah = st.number_input("Jumlah (Rp)", min_value=0)
-            bukti = st.file_uploader("Upload Bukti", type=["jpg", "png", "jpeg"])
+        st.subheader("📌 Input Kas Keluar")
 
-            st.markdown("</div>", unsafe_allow_html=True)
+        tgl = st.date_input("Tanggal", datetime.now())
+        ket = st.text_input("Keterangan")
+        jumlah = st.number_input("Jumlah (Rp)", min_value=0)
+        bukti = st.file_uploader("Upload Bukti (opsional)", type=["jpg", "png", "jpeg"])
 
         if st.button("Simpan Kas Keluar"):
-            bukti_name = ""
+            filename = ""
+
             if bukti:
-                bukti_name = f"bukti_{datetime.now().timestamp()}_{bukti.name}"
-                with open(bukti_name, "wb") as f:
-                    f.write(bukti.getbuffer())
+                filename = f"{BUKTI_FOLDER}/{datetime.now().strftime('%Y%m%d%H%M%S')} - {bukti.name}"
+                with open(filename, "wb") as f:
+                    f.write(bukti.read())
 
-            save_transaksi(str(tgl), "Keluar", ket, jumlah, bukti_name)
-            save_log(f"Tambah kas keluar: {jumlah}")
-            st.success("Kas Keluar berhasil disimpan!")
+            new_row = pd.DataFrame({
+                "tanggal": [str(tgl)],
+                "jenis": ["keluar"],
+                "keterangan": [ket],
+                "jumlah": [jumlah],
+                "panitia": [user],
+                "bukti": [filename],
+            })
 
-    # -------------------- REKAP DATA --------------------
-    if menu == "Rekap Transaksi":
-        st.subheader("📊 Rekap Keuangan")
-        st.dataframe(df)
+            df = pd.concat([df, new_row], ignore_index=True)
+            save_data(df)
 
-        total_masuk = df[df["jenis"] == "Masuk"]["jumlah"].sum()
-        total_keluar = df[df["jenis"] == "Keluar"]["jumlah"].sum()
+            log_action(user, f"Menambah kas keluar Rp {jumlah} ({ket})")
+
+            st.success("Kas keluar disimpan!")
+            st.rerun()
+
+    # ============================
+    # LOG AKTIVITAS
+    # ============================
+    if menu == "Log Aktivitas":
+        st.subheader("📜 Log Aktivitas Panitia")
+        st.dataframe(load_log())
+
+    # ============================
+    # EDIT / HAPUS TRANSAKSI
+    # ============================
+    if menu == "Edit / Hapus Transaksi":
+
+        st.subheader("✏ Edit / Hapus Transaksi")
+
+        if len(df) == 0:
+            st.info("Belum ada data.")
+        else:
+            idx = st.number_input("ID Data (index)", min_value=0, max_value=len(df)-1)
+            row = df.loc[idx]
+
+            st.write("📄 Data saat ini:")
+            st.json(row.to_dict())
+
+            new_ket = st.text_input("Edit Keterangan", row["keterangan"])
+            new_jml = st.number_input("Edit Jumlah", min_value=0, value=int(row["jumlah"]))
+
+            if st.button("Simpan Perubahan"):
+                df.at[idx, "keterangan"] = new_ket
+                df.at[idx, "jumlah"] = new_jml
+                save_data(df)
+                log_action(user, f"Edit transaksi ID {idx}")
+                st.success("Berhasil diperbarui!")
+                st.rerun()
+
+            if st.button("Hapus Data"):
+                df = df.drop(idx).reset_index(drop=True)
+                save_data(df)
+                log_action(user, f"Hapus transaksi ID {idx}")
+                st.success("Data dihapus!")
+                st.rerun()
+
+    # ============================
+    # DOWNLOAD LAPORAN
+    # ============================
+    if menu == "Download Laporan":
+        st.subheader("📥 Download Laporan Keuangan (CSV)")
+
+        st.download_button(
+            "Download Laporan (CSV)",
+            download_csv(df),
+            "laporan-keuangan.csv",
+            mime="text/csv",
+        )
+
+    # ============================
+    # DASHBOARD
+    # ============================
+    if menu == "Dashboard":
+
+        st.subheader("📊 Ringkasan Keuangan")
+
+        total_masuk = df[df["jenis"] == "masuk"]["jumlah"].sum()
+        total_keluar = df[df["jenis"] == "keluar"]["jumlah"].sum()
         saldo = total_masuk - total_keluar
 
-        st.info(f"💰 **Total Masuk:** Rp {total_masuk:,}")
-        st.warning(f"💸 **Total Keluar:** Rp {total_keluar:,}")
-        st.success(f"📦 **Saldo Akhir:** Rp {saldo:,}")
+        st.metric("Total Kas Masuk", f"Rp {total_masuk:,.0f}")
+        st.metric("Total Kas Keluar", f"Rp {total_keluar:,.0f}")
+        st.metric("Saldo Akhir", f"Rp {saldo:,.0f}")
 
-        if st.download_button("📥 Download Laporan Excel", download_excel(df),
-                              file_name="laporan_keuangan.xlsx"):
-            save_log("Download laporan excel")
+        st.subheader("📅 Grafik Harian")
 
-    # -------------------- LOG AKTIVITAS --------------------
-    if menu == "Log Aktivitas":
-        st.subheader("📃 Log Aktivitas Sistem")
-        log = pd.read_csv(FILE_LOG)
-        st.dataframe(log)
-
-    if menu == "Logout":
-        st.session_state["login"] = False
-        save_log("Logout")
-        st.rerun()
-
+        if len(df) > 0:
+            chart_df = df.copy()
+            chart_df["tanggal"] = pd.to_datetime(chart_df["tanggal"])
+            st.line_chart(chart_df, x="tanggal", y="jumlah")
 
 # ==============================
-# MAIN APP
+# MAIN
 # ==============================
+
 def main():
-    apply_nu_theme()
-    init_database()
-
-    if "login" not in st.session_state:
-        st.session_state["login"] = False
-
-    if not st.session_state["login"]:
+    if "user" not in st.session_state:
         login_page()
     else:
-        admin_page()
+        admin_page(st.session_state["user"])
 
-
-if __name__ == "__main__":
-    main()
+main()
