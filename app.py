@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 # ------------------------------
-# KONFIGURASI LOGIN MULTI USER
+# KONFIG LOGIN MULTI USER
 # ------------------------------
 USERS = {
     "ferri": "ferri@123",
@@ -16,35 +16,52 @@ USERS = {
 }
 
 # ------------------------------
-# FILE DATA
+# FILE CSV
 # ------------------------------
 DATA_FILE = "data_keuangan.csv"
+REQUIRED_COLUMNS = ["tanggal", "jenis", "keterangan", "jumlah", "petugas"]
+
 
 # ------------------------------
-# FUNGSI LOAD / SAVE
+# FUNGSI CEK & PERBAIKI CSV
 # ------------------------------
-def init_csv():
-    if not os.path.exists(DATA_FILE):
-        df = pd.DataFrame(columns=["tanggal", "jenis", "keterangan", "jumlah", "petugas"])
+def repair_csv():
+    """Memastikan CSV punya struktur yang benar."""
+    try:
+        df = pd.read_csv(DATA_FILE)
+        miss = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+
+        # Jika header tidak lengkap → perbaiki
+        if len(miss) > 0:
+            df = pd.DataFrame(columns=REQUIRED_COLUMNS)
+            df.to_csv(DATA_FILE, index=False)
+            return df
+
+        # Jika CSV hanya header tanpa isi → tetap aman
+        return df
+
+    except Exception:
+        # Jika file rusak atau kosong total → buat ulang
+        df = pd.DataFrame(columns=REQUIRED_COLUMNS)
         df.to_csv(DATA_FILE, index=False)
+        return df
+
 
 def load_data():
-    try:
-        return pd.read_csv(DATA_FILE)
-    except:
-        return pd.DataFrame(columns=["tanggal", "jenis", "keterangan", "jumlah", "petugas"])
+    return repair_csv()
 
-def save_data(new_row):
-    df = load_data()
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+
+def save_data(row):
+    df = repair_csv()
+    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
     df.to_csv(DATA_FILE, index=False)
 
+
 # ------------------------------
-# HALAMAN LOGIN
+# LOGIN PAGE
 # ------------------------------
 def login_page():
     st.title("🔐 Login untuk Akses Edit")
-
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
@@ -56,13 +73,15 @@ def login_page():
         else:
             st.error("Username atau password salah.")
 
+
 # ------------------------------
-# HALAMAN ADMIN
+# ADMIN PANEL
 # ------------------------------
 def admin_page():
     st.title("📌 Input & Manajemen Transaksi")
     st.write(f"👤 Login sebagai **{st.session_state['user']}**")
 
+    # KAS MASUK
     st.subheader("Kas Masuk")
     with st.form("kas_masuk"):
         tgl = st.date_input("Tanggal")
@@ -76,8 +95,9 @@ def admin_page():
                 "jumlah": jml,
                 "petugas": st.session_state["user"]
             })
-            st.success("Kas masuk berhasil disimpan!")
+            st.success("Kas masuk tersimpan!")
 
+    # KAS KELUAR
     st.subheader("Kas Keluar")
     with st.form("kas_keluar"):
         tgl = st.date_input("Tanggal", key="tgl_keluar")
@@ -91,26 +111,29 @@ def admin_page():
                 "jumlah": jml,
                 "petugas": st.session_state["user"]
             })
-            st.success("Kas keluar berhasil disimpan!")
+            st.success("Kas keluar tersimpan!")
 
+    # LAPORAN
     st.subheader("📊 Laporan Keuangan")
     df = load_data()
-    if not df.empty:
+
+    if df.empty:
+        st.warning("Belum ada transaksi.")
+    else:
         st.dataframe(df)
 
         total_masuk = df[df["jenis"] == "masuk"]["jumlah"].sum()
         total_keluar = df[df["jenis"] == "keluar"]["jumlah"].sum()
         saldo = total_masuk - total_keluar
 
-        st.info(f"💰 **Total Kas Masuk:** Rp {total_masuk:,.0f}")
-        st.info(f"📤 **Total Kas Keluar:** Rp {total_keluar:,.0f}")
-        st.success(f"🔵 **Saldo Akhir:** Rp {saldo:,.0f}")
-    else:
-        st.warning("Belum ada transaksi.")
+        st.info(f"💰 Total Kas Masuk: Rp {total_masuk:,.0f}")
+        st.info(f"📤 Total Kas Keluar: Rp {total_keluar:,.0f}")
+        st.success(f"🔵 Saldo Akhir: Rp {saldo:,.0f}")
 
     if st.button("Logout"):
         st.session_state.clear()
         st.rerun()
+
 
 # ------------------------------
 # MAIN
@@ -118,12 +141,11 @@ def admin_page():
 def main():
     st.set_page_config(page_title="Aplikasi Keuangan Musholla", layout="centered")
 
-    init_csv()
-
     if "user" not in st.session_state:
         login_page()
     else:
         admin_page()
+
 
 if __name__ == "__main__":
     main()
