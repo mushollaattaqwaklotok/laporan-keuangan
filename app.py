@@ -78,9 +78,15 @@ def simpan_bukti(uploaded_file):
 
 def download_excel(df):
     output = BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Keuangan")
-    return output.getvalue()
+    try:
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Laporan Keuangan")
+    except:
+        with pd.ExcelWriter(output) as writer:  # auto engine
+            df.to_excel(writer, index=False, sheet_name="Laporan Keuangan")
+
+    output.seek(0)
+    return output
 
 def download_pdf(df):
     text = df.to_string()
