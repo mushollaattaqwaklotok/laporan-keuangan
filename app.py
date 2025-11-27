@@ -12,9 +12,9 @@ LOG_FILE = "data/log_aktivitas.csv"
 # Multi-password untuk panitia
 PANITIA_USERS = {
     "Ketua": "kelas3ku",
+    "Sekretaris": "fatik3762",
     "Bendahara 1": "hadi5028",
     "Bendahara 2": "riki6522",
-    "Sekretaris": "fatik3762",
     "Koor Donasi 1": "bayu0255",
     "Koor Donasi 2": "roni9044"
 }
