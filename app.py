@@ -1,314 +1,168 @@
-# === APLIKASI KEUANGAN MUSHOLLA AT-TAQWA RT 1 ===
-# Dibuat oleh ChatGPT untuk Ferri Kusuma
-
 import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
-from io import BytesIO
 
-# ==============================
-# KONFIGURASI AWAL
-# ==============================
+# ================================
+#   KONFIGURASI
+# ================================
+DATA_FILE = "data/keuangan.csv"
+PANITIA_PASS = "kelas3ku"   # Password panitia (contoh)
+PUBLIK_MODE = "PUBLIK"
+PANITIA_MODE = "PANITIA"
 
-USERS = {
-    "ferri": "ferri@123",
-    "riki": "ferri@123",
-    "bayu": "ferri@123",
-}
+# Buat folder data jika belum ada
+os.makedirs("data", exist_ok=True)
 
-DATA_FILE = "data.csv"
-LOG_FILE = "log.csv"
-BUKTI_FOLDER = "bukti"
-BACKUP_FOLDER = "backup"
-
-# Buat folder jika belum ada
-os.makedirs(BUKTI_FOLDER, exist_ok=True)
-os.makedirs(BACKUP_FOLDER, exist_ok=True)
-
-# ==============================
-# FUNGSI DATABASE
-# ==============================
-
+# ================================
+#   FUNGSI BACA & SIMPAN DATA
+# ================================
 def load_data():
-    if os.path.exists(DATA_FILE):
-        return pd.read_csv(DATA_FILE)
-    else:
-        return pd.DataFrame(columns=["tanggal", "jenis", "keterangan", "jumlah", "panitia", "bukti"])
+    if not os.path.exists(DATA_FILE):
+        df = pd.DataFrame(columns=["Tanggal", "Keterangan", "Masuk", "Keluar", "Saldo"])
+        df.to_csv(DATA_FILE, index=False)
+    return pd.read_csv(DATA_FILE)
 
 def save_data(df):
     df.to_csv(DATA_FILE, index=False)
-    backup_name = f"{BACKUP_FOLDER}/backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
-    df.to_csv(backup_name, index=False)
 
-def load_log():
-    if os.path.exists(LOG_FILE):
-        return pd.read_csv(LOG_FILE)
-    else:
-        return pd.DataFrame(columns=["waktu", "panitia", "aksi"])
 
-def log_action(panitia, aksi):
-    log_df = load_log()
-    new_log = pd.DataFrame({
-        "waktu": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-        "panitia": [panitia],
-        "aksi": [aksi]
-    })
-    log_df = pd.concat([log_df, new_log], ignore_index=True)
-    log_df.to_csv(LOG_FILE, index=False)
+# ================================
+#   TEMA WARNA NU
+# ================================
+st.markdown("""
+    <style>
+        body { background-color: #ffffff; }
+        .main { background-color: #ffffff; }
+        .stApp { background-color: #ffffff; }
+        h1, h2, h3 { color: #0b6e4f; font-weight: 800; }
+        
+        /* Tombol hijau */
+        .stButton>button {
+            background-color: #0b6e4f;
+            color: white;
+            font-weight: bold;
+            border-radius: 6px;
+            padding: 6px 16px;
+        }
+        .stButton>button:hover {
+            background-color: #0d8a64;
+            color: white;
+        }
 
-# ==============================
-# DOWNLOAD CSV
-# ==============================
+        /* Input border hijau */
+        .stTextInput>div>div>input,
+        .stNumberInput>div>div>input {
+            border: 1px solid #0b6e4f !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-def download_csv(df):
-    output = BytesIO()
-    df.to_csv(output, index=False)
-    output.seek(0)
-    return output
 
-# ==============================
-# HALAMAN PUBLIK
-# ==============================
+# ================================
+#   MODE APLIKASI
+# ================================
+st.sidebar.header("📌 Pilih Mode")
+mode = st.sidebar.radio("Mode Aplikasi", [PUBLIK_MODE, PANITIA_MODE])
 
-def public_page():
-
+# ================================
+#   MODE PUBLIK
+# ================================
+if mode == PUBLIK_MODE:
     st.title("💒 Keuangan Musholla At-Taqwa RT 1 – Publik")
 
     df = load_data()
 
-    if len(df) == 0:
+    if df.empty:
         st.info("Belum ada data keuangan.")
-        return
+    else:
+        st.subheader("📄 Tabel Keuangan")
+        st.dataframe(df, use_container_width=True)
 
-    total_masuk = df[df["jenis"] == "masuk"]["jumlah"].sum()
-    total_keluar = df[df["jenis"] == "keluar"]["jumlah"].sum()
-    saldo = total_masuk - total_keluar
-
-    st.metric("Total Kas Masuk", f"Rp {total_masuk:,.0f}")
-    st.metric("Total Kas Keluar", f"Rp {total_keluar:,.0f}")
-    st.metric("Saldo Akhir", f"Rp {saldo:,.0f}")
-
-    st.subheader("📅 Grafik Keuangan")
-    chart_df = df.copy()
-    chart_df["tanggal"] = pd.to_datetime(chart_df["tanggal"])
-
-    st.line_chart(chart_df, x="tanggal", y="jumlah")
-
-    st.subheader("📄 Daftar Transaksi")
-
-    # Data publik (tanpa panitia & tanpa bukti)
-    df_public = df.drop(columns=["panitia", "bukti"])
-
-    st.dataframe(df_public)
-
-    st.download_button(
-        "Download CSV Publik",
-        download_csv(df_public),
-        "laporan-publik.csv",
-        mime="text/csv",
-    )
-
-    st.info("Untuk input/edit data, silakan login sebagai panitia.")
-    if st.button("Masuk sebagai Panitia"):
-        st.session_state["mode"] = "login"
-        st.rerun()
+        # Tombol download CSV
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Download Data CSV",
+            csv,
+            "keuangan_musholla.csv",
+            "text/csv",
+        )
 
 
-# ==============================
-# HALAMAN LOGIN
-# ==============================
+# ================================
+#   MODE PANITIA (LOGIN)
+# ================================
+else:
+    st.title("🕌 Panel Panitia – Kelola Keuangan Musholla")
 
-def login_page():
-    st.title("Login Panitia Musholla At-Taqwa")
+    password = st.sidebar.text_input("Password Panitia", type="password")
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    if password != PANITIA_PASS:
+        st.warning("Masukkan password panitia.")
+        st.stop()
 
-    if st.button("Login"):
-        if username in USERS and password == USERS[username]:
-            st.session_state["user"] = username
-            st.success(f"Login berhasil sebagai: {username}")
-            st.rerun()
-        else:
-            st.error("Username atau password salah")
-
-    if st.button("Kembali ke Halaman Publik"):
-        st.session_state["mode"] = "public"
-        st.rerun()
-
-# ==============================
-# HALAMAN ADMIN
-# ==============================
-
-def admin_page(user):
-
-    st.title(f"🤝 Selamat Datang, {user}")
+    st.success("Login berhasil ✔️")
 
     df = load_data()
 
-    menu = st.sidebar.radio(
-        "Menu",
-        ["Kas Masuk", "Kas Keluar", "Log Aktivitas",
-         "Edit / Hapus Transaksi", "Download Laporan", "Dashboard"]
+    # ============================
+    #  FORM INPUT
+    # ============================
+    st.subheader("➕ Tambah Data Baru")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        tanggal = st.date_input("Tanggal", datetime.now())
+        keterangan = st.text_input("Keterangan")
+    with col2:
+        masuk = st.number_input("Uang Masuk", min_value=0, step=1000)
+        keluar = st.number_input("Uang Keluar", min_value=0, step=1000)
+
+    if st.button("Simpan Data"):
+        saldo_akhir = df["Saldo"].iloc[-1] if not df.empty else 0
+        saldo_baru = saldo_akhir + masuk - keluar
+
+        new_row = {
+            "Tanggal": str(tanggal),
+            "Keterangan": keterangan,
+            "Masuk": masuk,
+            "Keluar": keluar,
+            "Saldo": saldo_baru
+        }
+
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        save_data(df)
+        st.success("Data berhasil disimpan!")
+
+
+    # ============================
+    #  TABEL
+    # ============================
+    st.subheader("📄 Tabel Keuangan")
+    st.dataframe(df, use_container_width=True)
+
+    # ============================
+    #  HAPUS DATA
+    # ============================
+    st.subheader("🗑 Hapus Baris Data")
+
+    if not df.empty:
+        index_to_delete = st.number_input("Pilih nomor baris (0 - {}):".format(len(df)-1), min_value=0, max_value=len(df)-1, step=1)
+
+        if st.button("Hapus Baris Ini"):
+            df = df.drop(index_to_delete).reset_index(drop=True)
+            save_data(df)
+            st.success("Baris berhasil dihapus!")
+
+
+    # ============================
+    #  DOWNLOAD CSV
+    # ============================
+    st.subheader("⬇️ Download Data")
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "Download CSV",
+        csv,
+        "keuangan_musholla.csv",
+        "text/csv",
     )
-
-    # === KAS MASUK ===
-    if menu == "Kas Masuk":
-
-        st.subheader("📌 Input Kas Masuk")
-
-        tgl = st.date_input("Tanggal", datetime.now())
-        ket = st.text_input("Keterangan")
-        jumlah = st.number_input("Jumlah (Rp)", min_value=0)
-        bukti = st.file_uploader("Upload Bukti (opsional)", type=["jpg", "png", "jpeg"])
-
-        if st.button("Simpan Kas Masuk"):
-            filename = ""
-
-            if bukti:
-                filename = f"{BUKTI_FOLDER}/{datetime.now().strftime('%Y%m%d%H%M%S')} - {bukti.name}"
-                with open(filename, "wb") as f:
-                    f.write(bukti.read())
-
-            new_row = pd.DataFrame({
-                "tanggal": [str(tgl)],
-                "jenis": ["masuk"],
-                "keterangan": [ket],
-                "jumlah": [jumlah],
-                "panitia": [user],
-                "bukti": [filename],
-            })
-
-            df = pd.concat([df, new_row], ignore_index=True)
-            save_data(df)
-            log_action(user, f"Kas Masuk Rp {jumlah} ({ket})")
-
-            st.success("Kas masuk disimpan!")
-            st.rerun()
-
-    # === KAS KELUAR ===
-    if menu == "Kas Keluar":
-
-        st.subheader("📌 Input Kas Keluar")
-
-        tgl = st.date_input("Tanggal", datetime.now())
-        ket = st.text_input("Keterangan")
-        jumlah = st.number_input("Jumlah (Rp)", min_value=0)
-        bukti = st.file_uploader("Upload Bukti (opsional)", type=["jpg", "png", "jpeg"])
-
-        if st.button("Simpan Kas Keluar"):
-            filename = ""
-
-            if bukti:
-                filename = f"{BUKTI_FOLDER}/{datetime.now().strftime('%Y%m%d%H%M%S')} - {bukti.name}"
-                with open(filename, "wb") as f:
-                    f.write(bukti.read())
-
-            new_row = pd.DataFrame({
-                "tanggal": [str(tgl)],
-                "jenis": ["keluar"],
-                "keterangan": [ket],
-                "jumlah": [jumlah],
-                "panitia": [user],
-                "bukti": [filename],
-            })
-
-            df = pd.concat([df, new_row], ignore_index=True)
-            save_data(df)
-            log_action(user, f"Kas Keluar Rp {jumlah} ({ket})")
-
-            st.success("Kas keluar disimpan!")
-            st.rerun()
-
-    # === LOG AKTIVITAS ===
-    if menu == "Log Aktivitas":
-        st.subheader("📜 Log Aktivitas Panitia")
-        st.dataframe(load_log())
-
-    # === EDIT / HAPUS TRANSAKSI ===
-    if menu == "Edit / Hapus Transaksi":
-
-        st.subheader("✏ Edit / Hapus Transaksi")
-
-        if len(df) == 0:
-            st.info("Belum ada data.")
-        else:
-            idx = st.number_input("ID Data (index)", min_value=0, max_value=len(df)-1)
-            row = df.loc[idx]
-
-            st.write("📄 Data saat ini:")
-            st.json(row.to_dict())
-
-            new_ket = st.text_input("Edit Keterangan", row["keterangan"])
-            new_jml = st.number_input("Edit Jumlah", min_value=0, value=int(row["jumlah"]))
-
-            if st.button("Simpan Perubahan"):
-                df.at[idx, "keterangan"] = new_ket
-                df.at[idx, "jumlah"] = new_jml
-                save_data(df)
-                log_action(user, f"Edit transaksi ID {idx}")
-                st.success("Berhasil diperbarui!")
-                st.rerun()
-
-            if st.button("Hapus Data"):
-                df = df.drop(idx).reset_index(drop=True)
-                save_data(df)
-                log_action(user, f"Hapus transaksi ID {idx}")
-                st.success("Data dihapus!")
-                st.rerun()
-
-    # === DOWNLOAD LAPORAN ===
-    if menu == "Download Laporan":
-        st.subheader("📥 Download Laporan Keuangan (CSV)")
-
-        st.download_button(
-            "Download Laporan (CSV)",
-            download_csv(df),
-            "laporan-keuangan.csv",
-            mime="text/csv",
-        )
-
-    # === DASHBOARD ===
-    if menu == "Dashboard":
-
-        st.subheader("📊 Ringkasan Keuangan")
-
-        total_masuk = df[df["jenis"] == "masuk"]["jumlah"].sum()
-        total_keluar = df[df["jenis"] == "keluar"]["jumlah"].sum()
-        saldo = total_masuk - total_keluar
-
-        st.metric("Total Kas Masuk", f"Rp {total_masuk:,.0f}")
-        st.metric("Total Kas Keluar", f"Rp {total_keluar:,.0f}")
-        st.metric("Saldo Akhir", f"Rp {saldo:,.0f}")
-
-        st.subheader("📅 Grafik Harian")
-
-        if len(df) > 0:
-            chart_df = df.copy()
-            chart_df["tanggal"] = pd.to_datetime(chart_df["tanggal"])
-            st.line_chart(chart_df, x="tanggal", y="jumlah")
-
-# ==============================
-# MAIN
-# ==============================
-
-def main():
-
-    if "mode" not in st.session_state:
-        st.session_state["mode"] = "public"
-
-    if st.session_state["mode"] == "public":
-        public_page()
-
-    elif st.session_state["mode"] == "login":
-        login_page()
-
-    elif "user" in st.session_state:
-        admin_page(st.session_state["user"])
-
-    else:
-        st.session_state["mode"] = "public"
-        st.rerun()
-
-main()
