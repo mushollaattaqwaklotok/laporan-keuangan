@@ -68,13 +68,59 @@ def download_csv(df):
     return output
 
 # ==============================
+# HALAMAN PUBLIK
+# ==============================
+
+def public_page():
+
+    st.title("💒 Keuangan Musholla At-Taqwa RT 1 – Publik")
+
+    df = load_data()
+
+    if len(df) == 0:
+        st.info("Belum ada data keuangan.")
+        return
+
+    total_masuk = df[df["jenis"] == "masuk"]["jumlah"].sum()
+    total_keluar = df[df["jenis"] == "keluar"]["jumlah"].sum()
+    saldo = total_masuk - total_keluar
+
+    st.metric("Total Kas Masuk", f"Rp {total_masuk:,.0f}")
+    st.metric("Total Kas Keluar", f"Rp {total_keluar:,.0f}")
+    st.metric("Saldo Akhir", f"Rp {saldo:,.0f}")
+
+    st.subheader("📅 Grafik Keuangan")
+    chart_df = df.copy()
+    chart_df["tanggal"] = pd.to_datetime(chart_df["tanggal"])
+
+    st.line_chart(chart_df, x="tanggal", y="jumlah")
+
+    st.subheader("📄 Daftar Transaksi")
+
+    # Data publik (tanpa panitia & tanpa bukti)
+    df_public = df.drop(columns=["panitia", "bukti"])
+
+    st.dataframe(df_public)
+
+    st.download_button(
+        "Download CSV Publik",
+        download_csv(df_public),
+        "laporan-publik.csv",
+        mime="text/csv",
+    )
+
+    st.info("Untuk input/edit data, silakan login sebagai panitia.")
+    if st.button("Masuk sebagai Panitia"):
+        st.session_state["mode"] = "login"
+        st.rerun()
+
+
+# ==============================
 # HALAMAN LOGIN
 # ==============================
 
 def login_page():
-    st.title("Aplikasi Keuangan — Musholla At Taqwa RT.1 Dusun Klotok")
-
-    st.subheader("Login (Panitia)")
+    st.title("Login Panitia Musholla At-Taqwa")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -86,6 +132,10 @@ def login_page():
             st.rerun()
         else:
             st.error("Username atau password salah")
+
+    if st.button("Kembali ke Halaman Publik"):
+        st.session_state["mode"] = "public"
+        st.rerun()
 
 # ==============================
 # HALAMAN ADMIN
@@ -103,9 +153,7 @@ def admin_page(user):
          "Edit / Hapus Transaksi", "Download Laporan", "Dashboard"]
     )
 
-    # ============================
-    # KAS MASUK
-    # ============================
+    # === KAS MASUK ===
     if menu == "Kas Masuk":
 
         st.subheader("📌 Input Kas Masuk")
@@ -134,15 +182,12 @@ def admin_page(user):
 
             df = pd.concat([df, new_row], ignore_index=True)
             save_data(df)
-
-            log_action(user, f"Menambah kas masuk Rp {jumlah} ({ket})")
+            log_action(user, f"Kas Masuk Rp {jumlah} ({ket})")
 
             st.success("Kas masuk disimpan!")
             st.rerun()
 
-    # ============================
-    # KAS KELUAR
-    # ============================
+    # === KAS KELUAR ===
     if menu == "Kas Keluar":
 
         st.subheader("📌 Input Kas Keluar")
@@ -171,22 +216,17 @@ def admin_page(user):
 
             df = pd.concat([df, new_row], ignore_index=True)
             save_data(df)
-
-            log_action(user, f"Menambah kas keluar Rp {jumlah} ({ket})")
+            log_action(user, f"Kas Keluar Rp {jumlah} ({ket})")
 
             st.success("Kas keluar disimpan!")
             st.rerun()
 
-    # ============================
-    # LOG AKTIVITAS
-    # ============================
+    # === LOG AKTIVITAS ===
     if menu == "Log Aktivitas":
         st.subheader("📜 Log Aktivitas Panitia")
         st.dataframe(load_log())
 
-    # ============================
-    # EDIT / HAPUS TRANSAKSI
-    # ============================
+    # === EDIT / HAPUS TRANSAKSI ===
     if menu == "Edit / Hapus Transaksi":
 
         st.subheader("✏ Edit / Hapus Transaksi")
@@ -218,9 +258,7 @@ def admin_page(user):
                 st.success("Data dihapus!")
                 st.rerun()
 
-    # ============================
-    # DOWNLOAD LAPORAN
-    # ============================
+    # === DOWNLOAD LAPORAN ===
     if menu == "Download Laporan":
         st.subheader("📥 Download Laporan Keuangan (CSV)")
 
@@ -231,9 +269,7 @@ def admin_page(user):
             mime="text/csv",
         )
 
-    # ============================
-    # DASHBOARD
-    # ============================
+    # === DASHBOARD ===
     if menu == "Dashboard":
 
         st.subheader("📊 Ringkasan Keuangan")
@@ -258,9 +294,21 @@ def admin_page(user):
 # ==============================
 
 def main():
-    if "user" not in st.session_state:
+
+    if "mode" not in st.session_state:
+        st.session_state["mode"] = "public"
+
+    if st.session_state["mode"] == "public":
+        public_page()
+
+    elif st.session_state["mode"] == "login":
         login_page()
-    else:
+
+    elif "user" in st.session_state:
         admin_page(st.session_state["user"])
+
+    else:
+        st.session_state["mode"] = "public"
+        st.rerun()
 
 main()
