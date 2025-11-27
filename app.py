@@ -99,7 +99,7 @@ mode = st.sidebar.radio("Mode", [PUBLIK_MODE, PANITIA_MODE])
 #  MODE PUBLIK
 # ======================================================
 if mode == PUBLIK_MODE:
-    st.title("💒 Keuangan Musholla At-Taqwa RT 1 – Publik")
+    st.title("💒 KEUANGAN MUSHOLLA AT-TAQWA RT 1 – PUBLIK")
 
     df = load_data()
 
@@ -121,7 +121,7 @@ if mode == PUBLIK_MODE:
 #  MODE PANITIA
 # ======================================================
 else:
-    st.title("🕌 Panel Panitia – Kelola Keuangan Musholla")
+    st.title("🕌 PANEL PANITIA – KELOLA KEUANGAN MUSHOLLA")
 
     username = st.sidebar.selectbox("Pilih Nama Panitia", ["-"] + list(PANITIA_USERS.keys()))
     password = st.sidebar.text_input("Password", type="password")
