@@ -1,192 +1,195 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
+import datetime
+import matplotlib.pyplot as plt
 
-# =========================
-# CONFIG APLIKASI
-# =========================
-st.set_page_config(
-    page_title="Aplikasi Keuangan Musholla At Taqwa",
-    layout="wide"
-)
-
-ADMIN_USER = "admin"
-ADMIN_PASS = "musholla123"
-
-DATA_FOLDER = "data"
-
-# =========================
-# FUNGSI MEMUAT DATA
-# =========================
-def load_csv(file_path):
-    if not os.path.exists(file_path):
-        return pd.DataFrame()
-
-    df = pd.read_csv(file_path)
-
-    # Normalisasi nama kolom
-    df.columns = df.columns.str.strip().str.title()
-
-    # Buat kolom Jumlah jika belum ada
-    if "Jumlah" not in df.columns:
-        df["Jumlah"] = 0
-
-    # Validasi tipe numerik
-    df["Jumlah"] = pd.to_numeric(df["Jumlah"], errors="coerce").fillna(0)
-
-    # Buat kolom tanggal jika belum ada
-    if "Tanggal" in df.columns:
-        df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
-
-    return df
+# ==========================================================
+# KONFIGURASI PASSWORD
+# ==========================================================
+ADMIN_PASSWORD = "ferri@123"
 
 
-# =========================
-# FUNGSI SIMPAN DATA
-# =========================
-def save_csv(df, file_path):
-    df.to_csv(file_path, index=False)
+# ==========================================================
+# FUNGSI PEMBANTU
+# ==========================================================
+def load_csv(path):
+    if not os.path.exists(path):
+        df = pd.DataFrame(columns=["Tanggal", "Tipe", "Jumlah", "Deskripsi"])
+        df.to_csv(path, index=False)
+        return df
+
+    try:
+        df = pd.read_csv(path)
+        if df.empty:
+            return pd.DataFrame(columns=["Tanggal", "Tipe", "Jumlah", "Deskripsi"])
+        return df
+    except:
+        return pd.DataFrame(columns=["Tanggal", "Tipe", "Jumlah", "Deskripsi"])
 
 
-# =========================
-# LOGIN
-# =========================
-def login():
-    st.subheader("Login untuk Akses Edit")
-
-    user = st.text_input("Username")
-    pwd = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if user == ADMIN_USER and pwd == ADMIN_PASS:
-            st.session_state["logged_in"] = True
-            st.success("Login berhasil!")
-        else:
-            st.error("Username / password salah!")
-
-    return st.session_state.get("logged_in", False)
+def save_csv(df, path):
+    df.to_csv(path, index=False)
 
 
-# =========================
-# RINGKASAN KEUANGAN
-# =========================
-def display_financial_summary(df_masuk, df_keluar):
-
-    total_masuk = df_masuk["Jumlah"].sum()
-    total_keluar = df_keluar["Jumlah"].sum()
-    saldo = total_masuk - total_keluar
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Total Pemasukan", f"Rp {total_masuk:,.0f}")
-
-    with col2:
-        st.metric("Total Pengeluaran", f"Rp {total_keluar:,.0f}")
-
-    with col3:
-        st.metric("Saldo Akhir", f"Rp {saldo:,.0f}")
-
-    st.write("---")
-
-
-# =========================
-# INPUT TRANSAKSI ADMIN
-# =========================
+# ==========================================================
+# HALAMAN ADMIN (INPUT / EDIT / HAPUS)
+# ==========================================================
 def admin_page():
     st.header("📌 Input & Manajemen Transaksi")
 
-    tab1, tab2 = st.tabs(["Kas Masuk", "Kas Keluar"])
+    file_path = "data_keuangan.csv"
+    df = load_csv(file_path)
 
-    # -----------------------
-    # TAB KAS MASUK
-    # -----------------------
-    with tab1:
+    menu = st.radio("Pilih Menu", ["Kas Masuk", "Kas Keluar", "Edit Transaksi", "Hapus Transaksi"])
 
-        file_path = f"{DATA_FOLDER}/kas_masuk.csv"
-        df = load_csv(file_path)
+    # ------------------------------------------------------
+    # INPUT KAS MASUK
+    # ------------------------------------------------------
+    if menu == "Kas Masuk":
+        st.subheader("💰 Tambah Kas Masuk")
 
-        st.subheader("Tambah Kas Masuk")
-        tgl = st.date_input("Tanggal")
-        uraian = st.text_input("Uraian")
+        tanggal = st.date_input("Tanggal", datetime.date.today())
         jumlah = st.number_input("Jumlah (Rp)", min_value=0)
+        deskripsi = st.text_input("Deskripsi")
 
         if st.button("Simpan Kas Masuk"):
-            new_row = {
-                "Tanggal": datetime.combine(tgl, datetime.min.time()),
-                "Uraian": uraian,
-                "Jumlah": jumlah
-            }
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+            new_row = pd.DataFrame([{
+                "Tanggal": tanggal.strftime("%Y-%m-%d"),
+                "Tipe": "Masuk",
+                "Jumlah": jumlah,
+                "Deskripsi": deskripsi
+            }])
+
+            df = pd.concat([df, new_row], ignore_index=True)
             save_csv(df, file_path)
-            st.success("Tersimpan!")
+            st.success("Kas masuk berhasil ditambahkan!")
 
-        st.write("### Data Kas Masuk")
-        st.dataframe(df)
+    # ------------------------------------------------------
+    # INPUT KAS KELUAR
+    # ------------------------------------------------------
+    if menu == "Kas Keluar":
+        st.subheader("💸 Tambah Kas Keluar")
 
-    # -----------------------
-    # TAB KAS KELUAR
-    # -----------------------
-    with tab2:
-
-        file_path = f"{DATA_FOLDER}/kas_keluar.csv"
-        df = load_csv(file_path)
-
-        st.subheader("Tambah Kas Keluar")
-        tgl = st.date_input("Tanggal", key="keluar_tgl")
-        uraian = st.text_input("Uraian", key="keluar_uraian")
-        jumlah = st.number_input("Jumlah (Rp)", min_value=0, key="keluar_jumlah")
+        tanggal = st.date_input("Tanggal", datetime.date.today())
+        jumlah = st.number_input("Jumlah (Rp)", min_value=0)
+        deskripsi = st.text_input("Deskripsi")
 
         if st.button("Simpan Kas Keluar"):
-            new_row = {
-                "Tanggal": datetime.combine(tgl, datetime.min.time()),
-                "Uraian": uraian,
-                "Jumlah": jumlah
-            }
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+            new_row = pd.DataFrame([{
+                "Tanggal": tanggal.strftime("%Y-%m-%d"),
+                "Tipe": "Keluar",
+                "Jumlah": jumlah,
+                "Deskripsi": deskripsi
+            }])
+
+            df = pd.concat([df, new_row], ignore_index=True)
             save_csv(df, file_path)
-            st.success("Tersimpan!")
+            st.success("Kas keluar berhasil ditambahkan!")
 
-        st.write("### Data Kas Keluar")
-        st.dataframe(df)
+    # ------------------------------------------------------
+    # EDIT TRANSAKSI
+    # ------------------------------------------------------
+    if menu == "Edit Transaksi":
+        st.subheader("✏️ Edit Transaksi")
+
+        if df.empty:
+            st.warning("Belum ada transaksi.")
+            return
+
+        index = st.number_input("Pilih Index Transaksi", 0, len(df)-1, 0)
+
+        st.write(df.iloc[index])
+
+        tanggal = st.date_input("Tanggal", datetime.date.fromisoformat(df.iloc[index]["Tanggal"]))
+        tipe = st.selectbox("Tipe", ["Masuk", "Keluar"], index=0 if df.iloc[index]["Tipe"] == "Masuk" else 1)
+        jumlah = st.number_input("Jumlah (Rp)", min_value=0, value=int(df.iloc[index]["Jumlah"]))
+        deskripsi = st.text_input("Deskripsi", df.iloc[index]["Deskripsi"])
+
+        if st.button("Simpan Perubahan"):
+            df.at[index, "Tanggal"] = tanggal.strftime("%Y-%m-%d")
+            df.at[index, "Tipe"] = tipe
+            df.at[index, "Jumlah"] = jumlah
+            df.at[index, "Deskripsi"] = deskripsi
+            save_csv(df, file_path)
+            st.success("Transaksi berhasil diperbarui!")
+
+    # ------------------------------------------------------
+    # HAPUS TRANSAKSI
+    # ------------------------------------------------------
+    if menu == "Hapus Transaksi":
+        st.subheader("🗑️ Hapus Transaksi")
+
+        if df.empty:
+            st.warning("Belum ada transaksi.")
+            return
+
+        index = st.number_input("Index Transaksi", 0, len(df)-1, 0)
+        st.write(df.iloc[index])
+
+        if st.button("Hapus"):
+            df = df.drop(index)
+            df.reset_index(drop=True, inplace=True)
+            save_csv(df, file_path)
+            st.error("Transaksi berhasil dihapus!")
 
 
-# =========================
-# HALAMAN LAPORAN PUBLIK
-# =========================
-def public_report():
-    st.header("📊 Laporan Keuangan Musholla At-Taqwa")
+# ==========================================================
+# HALAMAN LAPORAN / RINGKASAN
+# ==========================================================
+def laporan_page():
+    st.header("📊 Laporan Keuangan Musholla At Taqwa")
 
-    df_masuk = load_csv(f"{DATA_FOLDER}/kas_masuk.csv")
-    df_keluar = load_csv(f"{DATA_FOLDER}/kas_keluar.csv")
+    file_path = "data_keuangan.csv"
+    df = load_csv(file_path)
+
+    if df.empty:
+        st.info("Belum ada data transaksi.")
+        return
+
+    st.subheader("📘 Semua Transaksi")
+    st.dataframe(df)
 
     # Ringkasan
-    display_financial_summary(df_masuk, df_keluar)
+    pemasukan = df[df["Tipe"] == "Masuk"]["Jumlah"].sum()
+    pengeluaran = df[df["Tipe"] == "Keluar"]["Jumlah"].sum()
+    saldo = pemasukan - pengeluaran
 
-    st.subheader("📥 Rincian Kas Masuk")
-    st.dataframe(df_masuk)
+    st.subheader("📌 Ringkasan")
+    st.write(f"**Total Pemasukan:** Rp {pemasukan:,.0f}")
+    st.write(f"**Total Pengeluaran:** Rp {pengeluaran:,.0f}")
+    st.write(f"### 💵 Saldo Akhir: Rp {saldo:,.0f}")
 
-    st.subheader("📤 Rincian Kas Keluar")
-    st.dataframe(df_keluar)
+    # Grafik
+    st.subheader("📈 Grafik Keuangan")
+    df["Tanggal"] = pd.to_datetime(df["Tanggal"])
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    df.groupby(df["Tanggal"].dt.to_period("M"))["Jumlah"].sum().plot(ax=ax)
+    st.pyplot(fig)
 
 
-# =========================
-# MAIN APP
-# =========================
+# ==========================================================
+# MAIN PROGRAM
+# ==========================================================
 def main():
     st.title("Aplikasi Keuangan — Musholla At Taqwa RT.1 Dusun Klotok")
-    st.caption("Aplikasi sederhana untuk pencatatan dan pelaporan keuangan pembangunan musholla.")
+    st.write("Aplikasi sederhana untuk pencatatan dan pelaporan keuangan pembangunan musholla.")
 
-    st.write("## Akses Laporan")
-    if st.button("📄 Lihat Laporan Publik"):
-        public_report()
+    st.sidebar.subheader("Login Admin")
+    password = st.sidebar.text_input("Masukkan Password", type="password")
 
-    st.write("---")
+    if password == ADMIN_PASSWORD:
+        st.sidebar.success("Login berhasil!")
+        menu = st.sidebar.radio("Menu", ["Input / Edit", "Laporan"])
+        
+        if menu == "Input / Edit":
+            admin_page()
+        else:
+            laporan_page()
 
-    st.write("## Login untuk Akses Edit")
-    if login():
-        admin_page()
+    elif password != "":
+        st.sidebar.error("Password salah.")
 
 
 if __name__ == "__main__":
