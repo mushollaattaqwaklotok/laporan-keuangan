@@ -11,12 +11,12 @@ LOG_FILE = "data/log_aktivitas.csv"
 
 # Multi-password untuk panitia
 PANITIA_USERS = {
-    "Ahmad": "ahmad123",
-    "Rini": "rini123",
-    "Ferry": "ferry123",
-    "Hani": "hani123",
-    "Ibnu": "ibnu123",
-    "Bendahara": "bendahara123"
+    "Ketua": "kelas3ku",
+    "Bendahara 1": "hadi5028",
+    "Bendahara 2": "riki6522",
+    "Sekretaris": "fatik3762",
+    "Koor Donasi 1": "bayu0255",
+    "Koor Donasi 2": "roni9044"
 }
 
 PUBLIK_MODE = "PUBLIK"
