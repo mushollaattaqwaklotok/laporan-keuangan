@@ -1,13 +1,16 @@
 import streamlit as st
 import pandas as pd
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # ======================================================
 #  KONFIGURASI UTAMA
 # ======================================================
 DATA_FILE = "data/keuangan.csv"
 LOG_FILE = "data/log_aktivitas.csv"
+
+# Zona waktu GMT+7
+TZ = timezone(timedelta(hours=7))
 
 # Multi-password untuk panitia
 PANITIA_USERS = {
@@ -46,12 +49,16 @@ def load_log():
 def save_log(user, aksi, detail=""):
     df = load_log()
     new_row = {
-        "Waktu": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Waktu": datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S"),
         "Pengguna": user,
         "Aksi": aksi,
         "Detail": detail
     }
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    df.to_csv(LOG_FILE, index=False)
+
+def clear_log():
+    df = pd.DataFrame(columns=["Waktu", "Pengguna", "Aksi", "Detail"])
     df.to_csv(LOG_FILE, index=False)
 
 # ======================================================
@@ -137,7 +144,7 @@ else:
 
     col1, col2 = st.columns(2)
     with col1:
-        tanggal = st.date_input("Tanggal", datetime.now())
+        tanggal = st.date_input("Tanggal", datetime.now(TZ))
         keterangan = st.text_input("Keterangan")
     with col2:
         masuk = st.number_input("Uang Masuk", min_value=0, step=1000)
@@ -204,3 +211,13 @@ else:
 
     log_df = load_log()
     st.dataframe(log_df, use_container_width=True)
+
+    # -------------------------
+    # HAPUS LOG (KHUSUS KETUA)
+    # -------------------------
+    if username == "Ketua":
+        st.warning("⚠️ Fitur Khusus Ketua")
+        if st.button("Hapus Semua Log"):
+            clear_log()
+            save_log("Ketua", "Hapus Semua Log", "Log aktivitas direset ketua")
+            st.success("Semua log aktivitas berhasil dihapus!")
