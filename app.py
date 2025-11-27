@@ -157,7 +157,13 @@ def sidebar_login():
 # ---------------------------
 def display_financial_summary(df):
     # avoid NaNs
-    df['Jumlah'] = pd.to_numeric(df['Jumlah'], errors='coerce').fillna(0)
+    # --- Patch aman untuk kolom Jumlah ---
+# Pastikan kolom 'Jumlah' ada. Jika tidak, buat dengan nilai 0.
+if 'Jumlah' not in df.columns:
+    st.warning("Ada file transaksi yang tidak memiliki kolom 'Jumlah'. Nilai akan diisi 0.")
+    df['Jumlah'] = 0
+
+df['Jumlah'] = pd.to_numeric(df['Jumlah'], errors='coerce').fillna(0)
     total_income = df[df['Tipe'] == 'Uang Masuk']['Jumlah'].sum()
     total_expenses = df[df['Tipe'] == 'Uang Keluar']['Jumlah'].sum()
     operational = df[df['Tipe'] == 'Operasional']['Jumlah'].sum() if 'Operasional' in df['Tipe'].unique() else 0
