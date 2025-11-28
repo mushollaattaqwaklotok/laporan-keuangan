@@ -99,14 +99,14 @@ mode = st.sidebar.radio("Mode", [PUBLIK_MODE, PANITIA_MODE])
 #  MODE PUBLIK
 # ======================================================
 if mode == PUBLIK_MODE:
-    st.title("💒 KEUANGAN MUSHOLLA AT-TAQWA RT 1 – PUBLIK")
+    st.title("💒 MUSHOLLA AT-TAQWA RT 1 – PUBLIK")
 
     df = load_data()
 
     if df.empty:
         st.info("Belum ada data keuangan.")
     else:
-        st.subheader("📄 Tabel Keuangan")
+        st.subheader("📄 Laporan Keuangan")
         st.dataframe(df, use_container_width=True)
 
         csv = df.to_csv(index=False).encode("utf-8")
