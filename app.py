@@ -69,13 +69,13 @@ st.markdown("""
         body { background-color: #ffffff; }
         .main { background-color: #ffffff; }
         .stApp { background-color: #ffffff; }
-        h1, h2, h3 { color: #0b6e4f; font-weight: 400; }
+        h1, h2, h3 { color: #0b6e4f; font-weight: 800; }
 
         .stButton>button {
             background-color: #0b6e4f;
             color: white;
             font-weight: bold;
-            border-radius: 4px;
+            border-radius: 6px;
             padding: 6px 16px;
         }
         .stButton>button:hover {
