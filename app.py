@@ -99,7 +99,7 @@ mode = st.sidebar.radio("Mode", [PUBLIK_MODE, PANITIA_MODE])
 #  MODE PUBLIK
 # ======================================================
 if mode == PUBLIK_MODE:
-    st.title("💒 MUSHOLLA AT-TAQWA RT 1 – PUBLIK")
+    st.title("💒 Musholla At-Taqwa RT.1 Dusun Klotok– PUBLIK")
 
     df = load_data()
 
