@@ -23,7 +23,7 @@ PANITIA_USERS = {
 }
 
 PUBLIK_MODE = "PUBLIK"
-PANITIA_MODE = "PANITIA"
+PANITIA_MODE = "ADMIN"
 
 # Pastikan folder data ada
 os.makedirs("data", exist_ok=True)
