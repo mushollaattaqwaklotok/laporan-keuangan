@@ -121,7 +121,7 @@ if mode == PUBLIK_MODE:
 #  MODE PANITIA
 # ======================================================
 else:
-    st.title("🕌 PANEL PANITIA – KELOLA KEUANGAN MUSHOLLA")
+    st.title("🕌 Panel PANITIA – Kelola Keuangan Musholla")
 
     username = st.sidebar.selectbox("Pilih Nama Panitia", ["-"] + list(PANITIA_USERS.keys()))
     password = st.sidebar.text_input("Password", type="password")
