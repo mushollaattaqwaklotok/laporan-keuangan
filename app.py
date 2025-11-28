@@ -69,7 +69,7 @@ st.markdown("""
         body { background-color: #ffffff; }
         .main { background-color: #ffffff; }
         .stApp { background-color: #ffffff; }
-        h1, h2, h3 { color: #0b6e4f; font-weight: 800; }
+        h1, h2, h3 { color: #0b6e4f; font-weight: 400; }
 
         .stButton>button {
             background-color: #0b6e4f;
