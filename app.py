@@ -4,33 +4,29 @@ import os
 from datetime import datetime
 
 # ======================================================
-#  PATH & FOLDER SETUP (ANTI FileExistsError)
+#  FOLDER SETUP AMAN
 # ======================================================
 DATA_DIR = "data"
 BUKTI_DIR = "data/bukti"
 PENERIMAAN_DIR = "data/penerimaan"
 
 def safe_makedirs(path):
-    """Membuat folder secara aman tanpa error FileExistsError."""
     if os.path.exists(path):
         if os.path.isfile(path):
-            # Jika path adalah file, rename supaya bisa dibuat folder
             os.rename(path, path + "_backup")
     else:
         os.makedirs(path, exist_ok=True)
 
-# Buat semua folder aman
 for folder in [DATA_DIR, BUKTI_DIR, PENERIMAAN_DIR]:
     safe_makedirs(folder)
 
 # ======================================================
-#  FILE CSV
+#  CSV FILES
 # ======================================================
 KEUANGAN_CSV = "data/keuangan.csv"
 BARANG_CSV = "data/barang.csv"
 LOG_CSV = "data/log_aktivitas.csv"
 
-# Pastikan file CSV ada
 def ensure_csv(file, columns):
     if not os.path.exists(file):
         pd.DataFrame(columns=columns).to_csv(file, index=False)
@@ -52,13 +48,18 @@ USERS = {
     "Koor Donasi 1": "bayu0255",
     "Koor Donasi 2": "roni9044",
 
-    # akun publik
+    # Publik tanpa password
     "Publik": "",
 }
 
 user = st.sidebar.selectbox("Login sebagai:", USERS.keys())
-password = st.sidebar.text_input("Password:", type="password")
-login = password == USERS[user]
+
+# Publik tidak perlu password
+password = ""
+if user != "Publik":
+    password = st.sidebar.text_input("Password:", type="password")
+
+login = (user == "Publik") or (password == USERS[user])
 
 if not login:
     st.warning("Masukkan password untuk melanjutkan.")
@@ -67,7 +68,7 @@ if not login:
 st.success(f"Login sebagai {user}")
 
 # ======================================================
-#  FUNGSI LOG
+#  LOG
 # ======================================================
 def log_aktivitas(user, aksi):
     waktu = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -84,7 +85,7 @@ if user != "Publik":
     tab1, tab2 = st.tabs(["💰 Keuangan", "📦 Barang Masuk"])
 
     # ----------------------------
-    # TAB 1: INPUT KEUANGAN
+    # TAB: KEUANGAN
     # ----------------------------
     with tab1:
         tgl = st.date_input("Tanggal")
@@ -93,17 +94,22 @@ if user != "Publik":
         masuk = st.number_input("Masuk (Rp)", min_value=0)
         keluar = st.number_input("Keluar (Rp)", min_value=0)
 
-        bukti = st.file_uploader("Upload Bukti (jpg/png/pdf)", type=["jpg", "png", "jpeg", "pdf"])
+        bukti = st.file_uploader("Upload Bukti", type=["jpg","png","jpeg","pdf"])
 
         if st.button("Simpan Keuangan"):
             bukti_name = ""
             if bukti:
-                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                bukti_name = f"{timestamp}_{bukti.name}"
+                ts = datetime.now().strftime("%Y%m%d%H%M%S")
+                bukti_name = f"{ts}_{bukti.name}"
                 with open(f"{BUKTI_DIR}/{bukti_name}", "wb") as f:
                     f.write(bukti.getbuffer())
 
             df = pd.read_csv(KEUANGAN_CSV)
+
+            # pastikan kolom Bukti selalu ada
+            if "Bukti" not in df.columns:
+                df["Bukti"] = ""
+
             df.loc[len(df)] = [str(tgl), ket, kategori, masuk, keluar, bukti_name]
             df.to_csv(KEUANGAN_CSV, index=False)
 
@@ -111,39 +117,46 @@ if user != "Publik":
             st.success("Data keuangan disimpan.")
 
     # ----------------------------
-    # TAB 2: INPUT BARANG MASUK
+    # TAB: BARANG MASUK
     # ----------------------------
     with tab2:
         tglb = st.date_input("Tanggal Barang")
         namab = st.text_input("Nama Barang")
         jumlah = st.number_input("Jumlah", min_value=1)
-        satuan = st.text_input("Satuan (pcs, unit, dll)")
-        ketb = st.text_area("Keterangan Barang")
-        bukti_b = st.file_uploader("Upload Bukti Penerimaan", type=["jpg", "png", "jpeg", "pdf"])
+        satuan = st.text_input("Satuan")
+        ketb = st.text_area("Keterangan")
+        bukti_b = st.file_uploader("Upload Bukti", type=["jpg","png","jpeg","pdf"])
 
         if st.button("Simpan Barang Masuk"):
             bukti_name = ""
             if bukti_b:
-                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                bukti_name = f"{timestamp}_{bukti_b.name}"
+                ts = datetime.now().strftime("%Y%m%d%H%M%S")
+                bukti_name = f"{ts}_{bukti_b.name}"
                 with open(f"{PENERIMAAN_DIR}/{bukti_name}", "wb") as f:
                     f.write(bukti_b.getbuffer())
 
-            df = pd.read_csv(BARANG_CSV)
-            df.loc[len(df)] = [str(tglb), namab, jumlah, satuan, ketb, bukti_name]
-            df.to_csv(BARANG_CSV, index=False)
+            dfb = pd.read_csv(BARANG_CSV)
+
+            if "Bukti" not in dfb.columns:
+                dfb["Bukti"] = ""
+
+            dfb.loc[len(dfb)] = [str(tglb), namab, jumlah, satuan, ketb, bukti_name]
+            dfb.to_csv(BARANG_CSV, index=False)
 
             log_aktivitas(user, f"Input barang: {namab}")
             st.success("Data barang masuk disimpan.")
 
 # ======================================================
-#  TAMPILAN PUBLIK
+#  LAPORAN KEUANGAN (PUBLIK + PANITIA)
 # ======================================================
 st.header("📊 Laporan Keuangan")
 
 df_lap = pd.read_csv(KEUANGAN_CSV)
 
-# Fix kolom bukti
+# Pastikan kolom Bukti ada
+if "Bukti" not in df_lap.columns:
+    df_lap["Bukti"] = ""
+
 def preview_link(x):
     if pd.isna(x) or x == "":
         return ""
@@ -156,19 +169,22 @@ df_lap["Preview"] = df_lap["Bukti"].apply(preview_link)
 
 st.dataframe(df_lap)
 
-# ----------------------------
-# TAMPILAN BARANG PUBLIK
-# ----------------------------
+# ======================================================
+#  TAMPILAN BARANG
+# ======================================================
 st.header("📦 Daftar Barang Masuk")
 
 df_barang = pd.read_csv(BARANG_CSV)
 
+if "Bukti" not in df_barang.columns:
+    df_barang["Bukti"] = ""
+
 def preview_brg(x):
     if pd.isna(x) or x == "":
         return ""
-    fp = f"{PENERIMAAN_DIR}/{x}"
-    if os.path.exists(fp):
-        return f"[Lihat]({fp})"
+    path = f"{PENERIMAAN_DIR}/{x}"
+    if os.path.exists(path):
+        return f"[Lihat]({path})"
     return ""
 
 df_barang["Preview"] = df_barang["Bukti"].apply(preview_brg)
@@ -176,7 +192,7 @@ df_barang["Preview"] = df_barang["Bukti"].apply(preview_brg)
 st.dataframe(df_barang)
 
 # ======================================================
-# LOG (HANYA PANITIA)
+#  LOG (HANYA PANITIA)
 # ======================================================
 if user != "Publik":
     st.header("📝 Log Aktivitas")
@@ -184,10 +200,13 @@ if user != "Publik":
     st.dataframe(df_log)
 
 # ======================================================
-# DOWNLOAD CSV
+# DOWNLOAD DATA
 # ======================================================
 st.header("📥 Download Semua Data")
 
 st.download_button("Download Keuangan (CSV)", df_lap.to_csv(index=False), "keuangan.csv")
 st.download_button("Download Barang (CSV)", df_barang.to_csv(index=False), "barang.csv")
-st.download_button("Download Log (CSV)", df_log.to_csv(index=False) if user!="Publik" else "", "log.csv")
+
+if user != "Publik":
+    df_log = pd.read_csv(LOG_CSV)
+    st.download_button("Download Log (CSV)", df_log.to_csv(index=False), "log.csv")
