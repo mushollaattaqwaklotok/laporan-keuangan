@@ -21,22 +21,37 @@ for folder in [DATA_DIR, BUKTI_DIR, PENERIMAAN_DIR]:
     safe_makedirs(folder)
 
 # ======================================================
-#  CSV FILES
+# CSV FILES
 # ======================================================
 KEUANGAN_CSV = "data/keuangan.csv"
 BARANG_CSV = "data/barang.csv"
 LOG_CSV = "data/log_aktivitas.csv"
 
-def ensure_csv(file, columns):
-    if not os.path.exists(file):
-        pd.DataFrame(columns=columns).to_csv(file, index=False)
+# ======================================================
+#  SINKRONISASI KOLOM
+# ======================================================
+def sync_columns(df, required):
+    """Menambah kolom yang hilang dan mengurutkan kolom agar sesuai template."""
+    for col in required:
+        if col not in df.columns:
+            df[col] = ""
+    return df[required]
 
-ensure_csv(KEUANGAN_CSV, ["Tanggal", "Keterangan", "Kategori", "Masuk", "Keluar", "Bukti"])
-ensure_csv(BARANG_CSV, ["Tanggal", "Nama Barang", "Jumlah", "Satuan", "Keterangan", "Bukti"])
-ensure_csv(LOG_CSV, ["Waktu", "User", "Aksi"])
+def ensure_csv(path, cols):
+    if not os.path.exists(path):
+        pd.DataFrame(columns=cols).to_csv(path, index=False)
+
+# Template kolom
+KEUANGAN_COLS = ["Tanggal", "Keterangan", "Kategori", "Masuk", "Keluar", "Bukti"]
+BARANG_COLS   = ["Tanggal", "Nama Barang", "Jumlah", "Satuan", "Keterangan", "Bukti"]
+LOG_COLS      = ["Waktu", "User", "Aksi"]
+
+ensure_csv(KEUANGAN_CSV, KEUANGAN_COLS)
+ensure_csv(BARANG_CSV, BARANG_COLS)
+ensure_csv(LOG_CSV, LOG_COLS)
 
 # ======================================================
-#  LOGIN
+# LOGIN SYSTEM
 # ======================================================
 st.title("Sistem Keuangan Musholla At-Taqwa RT 1")
 
@@ -47,14 +62,11 @@ USERS = {
     "Bendahara 2": "riki6522",
     "Koor Donasi 1": "bayu0255",
     "Koor Donasi 2": "roni9044",
-
-    # Publik tanpa password
-    "Publik": "",
+    "Publik": "",  # publik tanpa password
 }
 
 user = st.sidebar.selectbox("Login sebagai:", USERS.keys())
 
-# Publik tidak perlu password
 password = ""
 if user != "Publik":
     password = st.sidebar.text_input("Password:", type="password")
@@ -68,25 +80,25 @@ if not login:
 st.success(f"Login sebagai {user}")
 
 # ======================================================
-#  LOG
+# LOGGING
 # ======================================================
 def log_aktivitas(user, aksi):
     waktu = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     df = pd.read_csv(LOG_CSV)
+    df = sync_columns(df, LOG_COLS)
     df.loc[len(df)] = [waktu, user, aksi]
     df.to_csv(LOG_CSV, index=False)
 
 # ======================================================
-#  INPUT DATA (KHUSUS PANITIA)
+# INPUT DATA (PANITIA SAJA)
 # ======================================================
 if user != "Publik":
     st.header("Input Keuangan")
-
     tab1, tab2 = st.tabs(["💰 Keuangan", "📦 Barang Masuk"])
 
-    # ----------------------------
-    # TAB: KEUANGAN
-    # ----------------------------
+    # --------------------------------------------------
+    # TAB KEUANGAN
+    # --------------------------------------------------
     with tab1:
         tgl = st.date_input("Tanggal")
         ket = st.text_input("Keterangan")
@@ -105,10 +117,7 @@ if user != "Publik":
                     f.write(bukti.getbuffer())
 
             df = pd.read_csv(KEUANGAN_CSV)
-
-            # pastikan kolom Bukti selalu ada
-            if "Bukti" not in df.columns:
-                df["Bukti"] = ""
+            df = sync_columns(df, KEUANGAN_COLS)
 
             df.loc[len(df)] = [str(tgl), ket, kategori, masuk, keluar, bukti_name]
             df.to_csv(KEUANGAN_CSV, index=False)
@@ -116,9 +125,9 @@ if user != "Publik":
             log_aktivitas(user, f"Input keuangan: {ket}")
             st.success("Data keuangan disimpan.")
 
-    # ----------------------------
-    # TAB: BARANG MASUK
-    # ----------------------------
+    # --------------------------------------------------
+    # TAB BARANG MASUK
+    # --------------------------------------------------
     with tab2:
         tglb = st.date_input("Tanggal Barang")
         namab = st.text_input("Nama Barang")
@@ -136,9 +145,7 @@ if user != "Publik":
                     f.write(bukti_b.getbuffer())
 
             dfb = pd.read_csv(BARANG_CSV)
-
-            if "Bukti" not in dfb.columns:
-                dfb["Bukti"] = ""
+            dfb = sync_columns(dfb, BARANG_COLS)
 
             dfb.loc[len(dfb)] = [str(tglb), namab, jumlah, satuan, ketb, bukti_name]
             dfb.to_csv(BARANG_CSV, index=False)
@@ -147,60 +154,48 @@ if user != "Publik":
             st.success("Data barang masuk disimpan.")
 
 # ======================================================
-#  LAPORAN KEUANGAN (PUBLIK + PANITIA)
+# LAPORAN KEUANGAN
 # ======================================================
 st.header("📊 Laporan Keuangan")
 
-df_lap = pd.read_csv(KEUANGAN_CSV)
-
-# Pastikan kolom Bukti ada
-if "Bukti" not in df_lap.columns:
-    df_lap["Bukti"] = ""
+df_lap = sync_columns(pd.read_csv(KEUANGAN_CSV), KEUANGAN_COLS)
 
 def preview_link(x):
-    if pd.isna(x) or x == "":
+    if not x:
         return ""
     path = f"{BUKTI_DIR}/{x}"
-    if os.path.exists(path):
-        return f"[Lihat Bukti]({path})"
-    return ""
+    return f"[Lihat Bukti]({path})" if os.path.exists(path) else ""
 
 df_lap["Preview"] = df_lap["Bukti"].apply(preview_link)
-
 st.dataframe(df_lap)
 
 # ======================================================
-#  TAMPILAN BARANG
+# LAPORAN BARANG
 # ======================================================
 st.header("📦 Daftar Barang Masuk")
 
-df_barang = pd.read_csv(BARANG_CSV)
-
-if "Bukti" not in df_barang.columns:
-    df_barang["Bukti"] = ""
+df_barang = sync_columns(pd.read_csv(BARANG_CSV), BARANG_COLS)
 
 def preview_brg(x):
-    if pd.isna(x) or x == "":
+    if not x:
         return ""
     path = f"{PENERIMAAN_DIR}/{x}"
-    if os.path.exists(path):
-        return f"[Lihat]({path})"
-    return ""
+    return f"[Lihat]({path})" if os.path.exists(path) else ""
 
 df_barang["Preview"] = df_barang["Bukti"].apply(preview_brg)
 
 st.dataframe(df_barang)
 
 # ======================================================
-#  LOG (HANYA PANITIA)
+# LOG (PANITIA SAJA)
 # ======================================================
 if user != "Publik":
     st.header("📝 Log Aktivitas")
-    df_log = pd.read_csv(LOG_CSV)
+    df_log = sync_columns(pd.read_csv(LOG_CSV), LOG_COLS)
     st.dataframe(df_log)
 
 # ======================================================
-# DOWNLOAD DATA
+# DOWNLOAD
 # ======================================================
 st.header("📥 Download Semua Data")
 
@@ -208,5 +203,4 @@ st.download_button("Download Keuangan (CSV)", df_lap.to_csv(index=False), "keuan
 st.download_button("Download Barang (CSV)", df_barang.to_csv(index=False), "barang.csv")
 
 if user != "Publik":
-    df_log = pd.read_csv(LOG_CSV)
     st.download_button("Download Log (CSV)", df_log.to_csv(index=False), "log.csv")
