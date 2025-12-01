@@ -1,185 +1,162 @@
 import streamlit as st
 import pandas as pd
-import os
 from datetime import datetime
 
-# =====================================================================
-# KONFIGURASI DIREKTORI
-# =====================================================================
-DATA_FILE = "data/keuangan.csv"
-BARANG_FILE = "data/barang.csv"
-LOG_FILE = "data/log.csv"
-BUKTI_DIR = "bukti"
+# ================================
+# KONFIGURASI FILE CSV GITHUB
+# ================================
+KEUANGAN_URL = "https://raw.githubusercontent.com/mushollaattaqwaklotok/laporan-keuangan/refs/heads/main/data/keuangan.csv"
+BARANG_URL   = "https://raw.githubusercontent.com/mushollaattaqwaklotok/laporan-keuangan/refs/heads/main/data/barang.csv"
 
-os.makedirs("data", exist_ok=True)
-os.makedirs(BUKTI_DIR, exist_ok=True)
+# Username & Password sederhana
+PANITIA_PASSWORD = "panitia123"
+KETUA_PASSWORD   = "ketua123"
+PUBLIK_PASSWORD  = "publik"
 
-# =====================================================================
-# USERS PANITIA
-# =====================================================================
-PANITIA_USERS = {
-    "Ketua": "kelas3ku",
-    "Sekretaris": "fatik3762",
-    "Bendahara 1": "hadi5028",
-    "Bendahara 2": "riki6522",
-    "Koor Donasi 1": "bayu0255",
-    "Koor Donasi 2": "roni9044"
-}
+# ================================
+# FUNGSI AMAN LOAD DATA CSV ONLINE
+# ================================
+@st.cache_data
+def load_csv(url, columns):
+    try:
+        df = pd.read_csv(url)
+        for col in columns:
+            if col not in df.columns:
+                df[col] = ""
+        return df
+    except:
+        return pd.DataFrame(columns=columns)
 
-# =====================================================================
-# INISIALISASI CSV
-# =====================================================================
-def init_csv():
-    if not os.path.exists(DATA_FILE):
-        pd.DataFrame(columns=["Tanggal", "Keterangan", "Kategori", "Masuk", "Keluar", "Bukti"]).to_csv(DATA_FILE, index=False)
+# Struktur final CSV
+KEUANGAN_COLUMNS = ["Tanggal","Keterangan","Kategori","Masuk","Keluar","Saldo","bukti_url"]
+BARANG_COLUMNS   = ["tanggal","jenis","keterangan","jumlah","satuan","bukti","bukti_penerimaan"]
 
-    if not os.path.exists(BARANG_FILE):
-        pd.DataFrame(columns=["Tanggal", "Nama Barang", "Jumlah", "Satuan", "Bukti"]).to_csv(BARANG_FILE, index=False)
+# Load data
+df_keu = load_csv(KEUANGAN_URL, KEUANGAN_COLUMNS)
+df_bar = load_csv(BARANG_URL, BARANG_COLUMNS)
 
-    if not os.path.exists(LOG_FILE):
-        pd.DataFrame(columns=["Waktu", "Aktivitas"]).to_csv(LOG_FILE, index=False)
-
-init_csv()
-
-# =====================================================================
-# UTILITAS
-# =====================================================================
-def load_df(path):
-    return pd.read_csv(path)
-
-def save_df(df, path):
-    df.to_csv(path, index=False)
-
-def preview_link(bukti):
-    if bukti == "" or pd.isna(bukti):
-        return "-"
-    return f"[Lihat]({BUKTI_DIR}/{bukti})"
-
-def log_activity(text):
-    df = load_df(LOG_FILE)
-    df.loc[len(df)] = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), text]
-    save_df(df, LOG_FILE)
-
-# =====================================================================
+# ================================
 # LOGIN
-# =====================================================================
+# ================================
 st.title("📊 Sistem Keuangan Musholla At-Taqwa RT 1")
 
-role = st.selectbox("Login sebagai:", ["Publik"] + list(PANITIA_USERS.keys()))
+role = st.selectbox("Login sebagai:", ["Publik", "Panitia", "Ketua"])
+pwd = st.text_input("Password:", type="password")
 
-if role != "Publik":
-    pwd = st.text_input("Password:", type="password")
-    if pwd != PANITIA_USERS.get(role, ""):
-        st.warning("Masukkan password yang benar.")
+if role == "Publik":
+    if pwd != PUBLIK_PASSWORD:
+        st.warning("Masukkan password publik.")
+        st.stop()
+elif role == "Panitia":
+    if pwd != PANITIA_PASSWORD:
+        st.warning("Password salah untuk panitia.")
+        st.stop()
+elif role == "Ketua":
+    if pwd != KETUA_PASSWORD:
+        st.warning("Password salah untuk ketua.")
         st.stop()
 
 st.success(f"Login sebagai {role}")
 
-# =====================================================================
-# HALAMAN
-# =====================================================================
-tab1, tab2, tab3, tab4 = st.tabs(["💰 Keuangan", "📦 Barang Masuk", "📄 Laporan", "🧾 Log"])
+# ======================================================
+# MENU NAVIGASI
+# ======================================================
+menu = st.sidebar.radio(
+    "Menu",
+    ["💰 Keuangan", "📦 Barang Masuk", "📄 Laporan", "🧾 Log"]
+)
 
-# =====================================================================
-# TAB 1 — INPUT KEUANGAN (ADMIN ONLY)
-# =====================================================================
-with tab1:
-    st.header("Input Keuangan")
+# ======================================================
+# 1. KEUANGAN
+# ======================================================
+if menu == "💰 Keuangan":
+    st.header("💰 Keuangan")
 
-    if role == "Publik":
-        st.info("Hanya panitia yang dapat input data.")
-    else:
-        tgl = st.date_input("Tanggal", datetime.now())
-        ket = st.text_input("Keterangan")
-        kategori = st.selectbox("Kategori", ["Kas Masuk", "Kas Keluar"])
-
-        if kategori == "Kas Masuk":
-            masuk = st.number_input("Masuk (Rp)", min_value=0)
-            keluar = 0
-        else:
-            masuk = 0
-            keluar = st.number_input("Keluar (Rp)", min_value=0)
-
-        bukti = st.file_uploader("Upload Bukti", type=["jpg", "png", "jpeg", "pdf"], key="keuangan_uploader")
-
-        if st.button("Simpan"):
-            df = load_df(DATA_FILE)
-
-            bukti_name = ""
-            if bukti:
-                ext = bukti.name.split(".")[-1]
-                bukti_name = f"k_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
-                with open(f"{BUKTI_DIR}/{bukti_name}", "wb") as f:
-                    f.write(bukti.getbuffer())
-
-            df.loc[len(df)] = [str(tgl), ket, kategori, masuk, keluar, bukti_name]
-            save_df(df, DATA_FILE)
-
-            log_activity(f"{role} input keuangan: {ket}")
-            st.success("Data berhasil disimpan!")
-
-# =====================================================================
-# TAB 2 — INPUT BARANG MASUK
-# =====================================================================
-with tab2:
-    st.header("Barang Masuk")
+    st.subheader("Data Keuangan Saat Ini")
+    st.dataframe(df_keu, use_container_width=True)
 
     if role == "Publik":
-        st.info("Hanya panitia yang dapat input data.")
-    else:
-        tgl = st.date_input("Tanggal", datetime.now(), key="tgl_barang")
-        nama = st.text_input("Nama Barang")
-        jumlah = st.number_input("Jumlah", min_value=1)
-        satuan = st.text_input("Satuan", value="unit")
+        st.info("Hanya panitia/ketua yang dapat input data.")
+        st.stop()
 
-        bukti_b = st.file_uploader("Upload Bukti Barang", type=["jpg", "png", "jpeg", "pdf"], key="barang_uploader")
+    st.subheader("Input Data Keuangan")
 
-        if st.button("Simpan Barang"):
-            dfb = load_df(BARANG_FILE)
+    tgl = st.date_input("Tanggal", datetime.now())
+    ket = st.text_input("Keterangan")
+    kategori = st.selectbox("Kategori", ["Kas Masuk", "Kas Keluar"])
+    masuk = st.number_input("Masuk (Rp)", min_value=0)
+    keluar = st.number_input("Keluar (Rp)", min_value=0)
 
-            bukti_name = ""
-            if bukti_b:
-                ext = bukti_b.name.split(".")[-1]
-                bukti_name = f"b_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
-                with open(f"{BUKTI_DIR}/{bukti_name}", "wb") as f:
-                    f.write(bukti_b.getbuffer())
+    bukti = st.file_uploader("Upload Bukti", type=["jpg","png","jpeg","pdf"], key="bukti_keu")
 
-            dfb.loc[len(dfb)] = [str(tgl), nama, jumlah, satuan, bukti_name]
-            save_df(dfb, BARANG_FILE)
+    if st.button("Simpan Keuangan"):
+        new_row = {
+            "Tanggal": str(tgl),
+            "Keterangan": ket,
+            "Kategori": kategori,
+            "Masuk": masuk,
+            "Keluar": keluar,
+            "Saldo": "",
+            "bukti_url": ""
+        }
 
-            log_activity(f"{role} input barang: {nama}")
-            st.success("Barang berhasil disimpan!")
+        st.warning("Mode ini hanya membaca CSV dari GitHub. Penyimpanan ke GitHub belum aktif.")
+        st.json(new_row)
 
-# =====================================================================
-# TAB 3 — LAPORAN
-# =====================================================================
-with tab3:
-    st.header("Laporan Keuangan & Barang")
+# ======================================================
+# 2. BARANG
+# ======================================================
+elif menu == "📦 Barang Masuk":
+    st.header("📦 Barang Masuk")
 
-    st.subheader("📘 Keuangan")
-    df = load_df(DATA_FILE)
-    if not df.empty:
-        df["Preview"] = df["Bukti"].apply(preview_link)
-        st.dataframe(df)
+    st.subheader("Data Barang Masuk")
+    st.dataframe(df_bar, use_container_width=True)
 
-        st.metric("Total Masuk", f"Rp {df['Masuk'].sum():,}")
-        st.metric("Total Keluar", f"Rp {df['Keluar'].sum():,}")
-        st.metric("Saldo", f"Rp {(df['Masuk'].sum() - df['Keluar'].sum()):,}")
-    else:
-        st.info("Belum ada data keuangan.")
+    if role == "Publik":
+        st.info("Publik tidak dapat input data.")
+        st.stop()
 
-    st.subheader("📦 Barang Masuk")
-    dfb = load_df(BARANG_FILE)
-    if not dfb.empty:
-        dfb["Preview"] = dfb["Bukti"].apply(preview_link)
-        st.dataframe(dfb)
-    else:
-        st.info("Belum ada data barang.")
+    st.subheader("Input Barang Masuk")
 
-# =====================================================================
-# TAB 4 — LOG
-# =====================================================================
-with tab4:
-    st.header("Aktivitas Panitia")
-    dfl = load_df(LOG_FILE)
-    st.dataframe(dfl)
+    tgl = st.date_input("Tanggal Barang", datetime.now())
+    jenis = st.text_input("Jenis Barang")
+    ket = st.text_input("Keterangan")
+    jumlah = st.number_input("Jumlah", min_value=0.0)
+    satuan = st.text_input("Satuan (bh, unit, box, dll)")
+
+    bukti_b = st.file_uploader("Upload Bukti Pengambilan", type=["jpg","png","jpeg","pdf"], key="bukti_barang")
+    bukti_p = st.file_uploader("Upload Bukti Penerimaan", type=["jpg","png","jpeg","pdf"], key="bukti_terima")
+
+    if st.button("Simpan Barang"):
+        new_row = {
+            "tanggal": str(tgl),
+            "jenis": jenis,
+            "keterangan": ket,
+            "jumlah": jumlah,
+            "satuan": satuan,
+            "bukti": "",
+            "bukti_penerimaan": ""
+        }
+
+        st.warning("Mode ini hanya membaca CSV dari GitHub. Penyimpanan ke GitHub belum aktif.")
+        st.json(new_row)
+
+# ======================================================
+# 3. LAPORAN
+# ======================================================
+elif menu == "📄 Laporan":
+    st.header("📄 Laporan Lengkap")
+
+    st.subheader("Keuangan")
+    st.dataframe(df_keu)
+
+    st.subheader("Barang Masuk")
+    st.dataframe(df_bar)
+
+# ======================================================
+# 4. LOG
+# ======================================================
+elif menu == "🧾 Log":
+    st.header("🧾 Log Aktivitas")
+
+    st.info("Log belum aktif karena penyimpanan GitHub belum diaktifkan.")
