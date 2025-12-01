@@ -77,9 +77,15 @@ input, textarea, select { border-radius:10px !important; border:1px solid #0b6e4
 # =====================================================
 
 def load_csv_safe(local_file, github_url, columns):
-if os.path.exists(local_file):
-try:
-return pd.read_csv(local_file)
+    if os.path.exists(local_file):
+        try:
+            return pd.read_csv(local_file)
+        except Exception:
+            pass
+    try:
+        return pd.read_csv(github_url)
+    except Exception:
+        return pd.DataFrame(columns=columns)
 except Exception:
 pass
 try:
