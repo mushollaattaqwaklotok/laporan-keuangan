@@ -100,7 +100,7 @@ input, textarea, select {
 # =====================================================
 
 def load_csv_safe(local_file, github_url, columns):
-    """Jika lokal ada pakai lokal. Jika tidak pakai GitHub."""  # ✅
+    """Jika lokal ada pakai lokal. Jika tidak pakai GitHub."""
     if os.path.exists(local_file):
         try:
             return pd.read_csv(local_file)
