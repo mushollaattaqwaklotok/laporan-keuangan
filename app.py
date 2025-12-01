@@ -7,7 +7,6 @@ from git import Repo
 # =====================================================
 #  KONFIGURASI AWAL
 # =====================================================
-
 DATA_DIR = "data"
 UPLOADS_DIR = "uploads"
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -27,6 +26,12 @@ PANITIA = {
     "koor donasi 1": "bayu0255",
     "koor donasi 2": "roni9044"
 }
+
+# =====================================================
+#  GITHUB PAT
+# =====================================================
+GITHUB_PAT = "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"
+GITHUB_REPO = "mushollaattaqwaklotok/laporan-keuangan"
 
 # =====================================================
 #  UI PREMIUM – Hanya Tampilan
@@ -83,17 +88,20 @@ def preview_link(url):
     return f"[Lihat Bukti]({url})"
 
 # =====================================================
-#  FUNGSI PUSH KE GITHUB
+#  FUNGSI PUSH KE GITHUB DENGAN PAT
 # =====================================================
 def git_push(file_paths, commit_msg="Update data otomatis"):
-    """Commit & push file CSV ke GitHub repo."""
+    """
+    Commit & push file CSV ke GitHub menggunakan PAT.
+    """
     try:
         repo_dir = os.getcwd()
         repo = Repo(repo_dir)
         repo.index.add(file_paths)
         repo.index.commit(commit_msg)
-        origin = repo.remote(name='origin')
-        origin.push()
+        origin_url = f"https://{GITHUB_PAT}@github.com/{GITHUB_REPO}.git"
+        repo.remote(name='origin').set_url(origin_url)
+        repo.remote(name='origin').push()
         st.success("✅ Data berhasil di-push ke GitHub.")
     except Exception as e:
         st.error(f"❌ Gagal push ke GitHub: {e}")
@@ -101,17 +109,8 @@ def git_push(file_paths, commit_msg="Update data otomatis"):
 # =====================================================
 #  LOAD DATA
 # =====================================================
-df_keu = load_csv_safe(
-    FILE_KEUANGAN,
-    GITHUB_KEUANGAN,
-    ["Tanggal","Keterangan","Kategori","Masuk","Keluar","Saldo","bukti_url"]
-)
-
-df_barang = load_csv_safe(
-    FILE_BARANG,
-    GITHUB_BARANG,
-    ["tanggal","jenis","keterangan","jumlah","satuan","bukti","bukti_penerimaan"]
-)
+df_keu = load_csv_safe(FILE_KEUANGAN, GITHUB_KEUANGAN, ["Tanggal","Keterangan","Kategori","Masuk","Keluar","Saldo","bukti_url"])
+df_barang = load_csv_safe(FILE_BARANG, GITHUB_BARANG, ["tanggal","jenis","keterangan","jumlah","satuan","bukti","bukti_penerimaan"])
 
 # =====================================================
 #  HEADER UI
@@ -136,7 +135,6 @@ level = st.sidebar.radio("", [
     "Koor Donasi 1",
     "Koor Donasi 2"
 ])
-
 if level != "Publik":
     password = st.sidebar.text_input("Password:", type="password")
     key = level.lower()
@@ -156,23 +154,15 @@ if menu == "💰 Keuangan":
     st.header("💰 Keuangan")
     if len(df_keu) > 0:
         col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown(f"<div class='infocard'><h3>Total Masuk</h3><p>Rp {df_keu['Masuk'].sum():,}</p></div>", unsafe_allow_html=True)
-        with col2:
-            st.markdown(f"<div class='infocard'><h3>Total Keluar</h3><p>Rp {df_keu['Keluar'].sum():,}</p></div>", unsafe_allow_html=True)
-        with col3:
-            st.markdown(f"<div class='infocard'><h3>Saldo Akhir</h3><p>Rp {df_keu['Saldo'].iloc[-1]:,}</p></div>", unsafe_allow_html=True)
+        with col1: st.markdown(f"<div class='infocard'><h3>Total Masuk</h3><p>Rp {df_keu['Masuk'].sum():,}</p></div>", unsafe_allow_html=True)
+        with col2: st.markdown(f"<div class='infocard'><h3>Total Keluar</h3><p>Rp {df_keu['Keluar'].sum():,}</p></div>", unsafe_allow_html=True)
+        with col3: st.markdown(f"<div class='infocard'><h3>Saldo Akhir</h3><p>Rp {df_keu['Saldo'].iloc[-1]:,}</p></div>", unsafe_allow_html=True)
 
     st.subheader("Input Keuangan")
     if level == "Publik":
         st.info("🔒 Hanya panitia yang dapat input data.")
         if len(df_keu) > 0:
-            st.download_button(
-                label="⬇️ Download Laporan Keuangan (CSV)",
-                data=df_keu.to_csv(index=False).encode("utf-8"),
-                file_name="laporan_keuangan.csv",
-                mime="text/csv"
-            )
+            st.download_button("⬇️ Download Laporan Keuangan (CSV)", df_keu.to_csv(index=False).encode("utf-8"), file_name="laporan_keuangan.csv", mime="text/csv")
     else:
         tgl = st.date_input("Tanggal")
         ket = st.text_input("Keterangan")
@@ -180,14 +170,11 @@ if menu == "💰 Keuangan":
         masuk = st.number_input("Masuk (Rp)", min_value=0)
         keluar = st.number_input("Keluar (Rp)", min_value=0)
         bukti = st.file_uploader("Upload Bukti")
-
         if st.button("Simpan Data"):
             bukti_url = ""
             if bukti:
                 bukti_url = f"{UPLOADS_DIR}/{bukti.name}"
-                with open(bukti_url, "wb") as f:
-                    f.write(bukti.read())
-
+                with open(bukti_url, "wb") as f: f.write(bukti.read())
             saldo_akhir = (df_keu["Saldo"].iloc[-1] if len(df_keu) else 0) + masuk - keluar
             new_row = {"Tanggal": str(tgl), "Keterangan": ket, "Kategori": kategori, "Masuk": masuk, "Keluar": keluar, "Saldo": saldo_akhir, "bukti_url": bukti_url}
             df_keu = pd.concat([df_keu, pd.DataFrame([new_row])], ignore_index=True)
@@ -208,12 +195,7 @@ elif menu == "📦 Barang Masuk":
     if level == "Publik":
         st.info("🔒 Hanya panitia yang dapat input data.")
         if len(df_barang) > 0:
-            st.download_button(
-                label="⬇️ Download Data Barang (CSV)",
-                data=df_barang.to_csv(index=False).encode("utf-8"),
-                file_name="barang_masuk.csv",
-                mime="text/csv"
-            )
+            st.download_button("⬇️ Download Data Barang (CSV)", df_barang.to_csv(index=False).encode("utf-8"), file_name="barang_masuk.csv", mime="text/csv")
     else:
         tgl_b = st.date_input("Tanggal Barang")
         jenis_b = st.text_input("Jenis Barang")
@@ -221,14 +203,11 @@ elif menu == "📦 Barang Masuk":
         jml_b = st.number_input("Jumlah", min_value=0)
         satuan_b = st.text_input("Satuan")
         bukti_b = st.file_uploader("Upload Bukti Penerimaan")
-
         if st.button("Simpan Barang"):
             bukti_url = ""
             if bukti_b:
                 bukti_url = f"{UPLOADS_DIR}/{bukti_b.name}"
-                with open(bukti_url, "wb") as f:
-                    f.write(bukti_b.read())
-
+                with open(bukti_url, "wb") as f: f.write(bukti_b.read())
             new_b = {"tanggal": str(tgl_b), "jenis": jenis_b, "keterangan": ket_b, "jumlah": jml_b, "satuan": satuan_b, "bukti": bukti_url, "bukti_penerimaan": bukti_url}
             df_barang = pd.concat([df_barang, pd.DataFrame([new_b])], ignore_index=True)
             save_csv(df_barang, FILE_BARANG)
