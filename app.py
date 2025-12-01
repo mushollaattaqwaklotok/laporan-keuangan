@@ -4,130 +4,248 @@ import os
 from datetime import datetime
 
 # ======================================================
-#  KONFIGURASI
+#  KONFIGURASI UTAMA
 # ======================================================
-DATA_UANG = "https://raw.githubusercontent.com/mushollaattaqwaklotok/laporan-keuangan/main/data/keuangan.csv"
-DATA_BARANG = "https://raw.githubusercontent.com/mushollaattaqwaklotok/laporan-keuangan/main/data/barang.csv"
-LOG_FILE = "data/log_aktivitas.csv"
 
-BUKTI_FOLDER = "bukti"
-os.makedirs(BUKTI_FOLDER, exist_ok=True)
+DATA_DIR = "data"
+BUKTI_DIR = "bukti"
+
+KEUANGAN_FILE = f"{DATA_DIR}/keuangan.csv"
+BARANG_FILE = f"{DATA_DIR}/barang.csv"
+LOG_FILE = f"{DATA_DIR}/log_aktivitas.csv"
+
+GITHUB_RAW_KEUANGAN = "https://raw.githubusercontent.com/mushollaattaqwaklotok/laporan-keuangan/refs/heads/main/data/keuangan.csv"
+GITHUB_RAW_BARANG = "https://raw.githubusercontent.com/mushollaattaqwaklotok/laporan-keuangan/refs/heads/main/data/barang.csv"
+
+ADMIN_PASSWORD = "attaqwa"
+PUBLIK_MODE = "Publik"
+ADMIN_MODE = "Admin"
+
+# ------------------------------------------------------
+#  Pastikan folder ada
+# ------------------------------------------------------
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(BUKTI_DIR, exist_ok=True)
 
 # ======================================================
-# LOAD DATA
+#  FUNGSI UTILITAS
 # ======================================================
-@st.cache_data
-def load_csv(url, expected_cols):
+
+def load_csv(local_path, github_url):
+    """Load CSV dari lokal, jika gagal ambil dari GitHub"""
     try:
-        df = pd.read_csv(url)
-        for col in expected_cols:
-            if col not in df.columns:
-                df[col] = ""
-        return df
+        if os.path.exists(local_path):
+            return pd.read_csv(local_path)
+        return pd.read_csv(github_url)
     except:
-        return pd.DataFrame(columns=expected_cols)
+        return pd.DataFrame()
 
-df = load_csv(DATA_UANG, ["tanggal","keterangan","jenis","jumlah","bukti"])
-df_barang = load_csv(DATA_BARANG, ["tanggal","nama_barang","jenis","jumlah","bukti"])
+def save_csv(df, path):
+    try:
+        df.to_csv(path, index=False)
+    except:
+        pass
+
+def log_aktivitas(teks):
+    waktu = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = pd.DataFrame({"Waktu": [waktu], "Aktivitas": [teks]})
+
+    if os.path.exists(LOG_FILE):
+        lama = pd.read_csv(LOG_FILE)
+        baru = pd.concat([lama, entry], ignore_index=True)
+    else:
+        baru = entry
+
+    baru.to_csv(LOG_FILE, index=False)
+
+def upload_bukti(file):
+    if file is None:
+        return ""
+    ext = file.name.split(".")[-1].lower()
+    new_name = datetime.now().strftime("%Y%m%d%H%M%S") + "." + ext
+    save_path = f"{BUKTI_DIR}/{new_name}"
+    with open(save_path, "wb") as f:
+        f.write(file.read())
+    return save_path
+
 
 # ======================================================
-# SAVE TO REPO
+#  LOAD DATABASE
 # ======================================================
-def save_local(df, path):
-    df.to_csv(path, index=False)
+def load_keuangan():
+    return load_csv(KEUANGAN_FILE, GITHUB_RAW_KEUANGAN)
+
+def load_barang():
+    return load_csv(BARANG_FILE, GITHUB_RAW_BARANG)
+
 
 # ======================================================
-# TAMPILAN UTAMA
+#  STREAMLIT APP
 # ======================================================
-st.title("📊 Laporan Keuangan Musholla At-Taqwa RT 1 — Dusun Klotok")
-
-menu = st.sidebar.radio("Menu", ["Input Uang", "Input Barang", "Laporan", "Log Aktivitas"])
+st.set_page_config(page_title="Laporan Keuangan Musholla At-Taqwa", layout="wide")
+st.title("📊 Laporan Keuangan Musholla At-Taqwa - RT 1 Dusun Klotok")
 
 # ======================================================
-# INPUT UANG
+#  MODE SELEKSI (ADMIN / PUBLIK)
 # ======================================================
-if menu == "Input Uang":
-    st.subheader("➕ Input Data Keuangan")
+mode = st.sidebar.selectbox("Mode Aplikasi", [PUBLIK_MODE, ADMIN_MODE])
 
-    tgl = st.date_input("Tanggal")
-    ket = st.text_input("Keterangan")
+if mode == ADMIN_MODE:
+    password = st.sidebar.text_input("Password Admin", type="password")
+    if password != ADMIN_PASSWORD:
+        st.warning("Masukkan password admin untuk melanjutkan")
+        st.stop()
+
+# ======================================================
+#  MODE PUBLIK — HANYA VIEW
+# ======================================================
+if mode == PUBLIK_MODE:
+
+    st.header("💰 Laporan Keuangan")
+
+    df = load_keuangan()
+
+    if df.empty:
+        st.info("Belum ada data keuangan.")
+    else:
+        st.dataframe(df, use_container_width=True)
+
+        # ====== PREVIEW BUKTI KEUANGAN ======
+        st.subheader("🧾 Bukti Keuangan (Nota / Kwitansi)")
+        for i, row in df.iterrows():
+            bukti = str(row.get("Bukti", "")).strip()
+            if bukti:
+                with st.expander(f"[{i}] {row['Tanggal']} — {row['Keterangan']}"):
+                    try:
+                        if bukti.startswith("http"):
+                            if bukti.lower().endswith((".jpg", ".jpeg", ".png")):
+                                st.image(bukti)
+                            else:
+                                st.markdown(f"[Lihat File]({bukti})")
+                        else:
+                            st.image(open(bukti, "rb").read())
+                    except:
+                        st.markdown(f"[Buka File]({bukti})")
+
+    # ======================================================
+    #   TAMPILAN BARANG (PUBLIK)
+    # ======================================================
+    st.header("📦 Laporan Barang Masuk / Keluar")
+
+    df_b = load_barang()
+
+    if df_b.empty:
+        st.info("Belum ada data barang.")
+    else:
+        st.dataframe(
+            df_b.drop(columns=["Bukti"]) if "Bukti" in df_b.columns else df_b,
+            use_container_width=True
+        )
+
+        # ====== PREVIEW FOTO BARANG ======
+        st.subheader("📸 Bukti Foto Barang")
+        for i, row in df_b.iterrows():
+            bukti = str(row.get("Bukti", "")).strip()
+            if bukti:
+                with st.expander(f"[{i}] {row['Tanggal']} — {row['Jenis']} – {row['Keterangan']}"):
+                    try:
+                        if bukti.startswith("http"):
+                            st.image(bukti)
+                        else:
+                            st.image(open(bukti, "rb").read())
+                    except:
+                        st.markdown(f"[Buka File]({bukti})")
+
+    # ====== DOWNLOAD LAPORAN ======
+    st.subheader("📥 Download Laporan")
+    st.download_button("Download CSV Keuangan", df.to_csv(index=False), file_name="keuangan.csv")
+    st.download_button("Download CSV Barang", df_b.to_csv(index=False), file_name="barang.csv")
+
+    st.stop()
+
+# ======================================================
+#  MODE ADMIN
+# ======================================================
+st.header("🔐 Panel Admin")
+
+# ======================================================
+#  INPUT KEUANGAN
+# ======================================================
+st.subheader("➕ Input Keuangan")
+
+df = load_keuangan()
+
+col1, col2 = st.columns(2)
+with col1:
+    tanggal = st.date_input("Tanggal", datetime.now())
+    keterangan = st.text_input("Keterangan")
+with col2:
+    masuk = st.number_input("Masuk (Rp)", 0)
+    keluar = st.number_input("Keluar (Rp)", 0)
+
+bukti = st.file_uploader("Upload Bukti (Opsional)", type=["jpg", "jpeg", "png", "pdf"])
+
+if st.button("Simpan Keuangan"):
+    bukti_path = upload_bukti(bukti)
+
+    saldo_lama = df["Saldo"].iloc[-1] if not df.empty else 0
+    saldo_baru = saldo_lama + masuk - keluar
+
+    new = pd.DataFrame({
+        "Tanggal": [str(tanggal)],
+        "Keterangan": [keterangan],
+        "Masuk": [masuk],
+        "Keluar": [keluar],
+        "Saldo": [saldo_baru],
+        "Bukti": [bukti_path]
+    })
+
+    df = pd.concat([df, new], ignore_index=True)
+    save_csv(df, KEUANGAN_FILE)
+    log_aktivitas(f"Input keuangan: {keterangan} ({masuk}/{keluar})")
+
+    st.success("Data keuangan berhasil disimpan!")
+
+# ======================================================
+#  INPUT BARANG
+# ======================================================
+st.subheader("📦 Input Barang Masuk / Keluar")
+
+df_b = load_barang()
+
+col1, col2 = st.columns(2)
+with col1:
+    tgl_b = st.date_input("Tanggal Barang", datetime.now(), key="tglbarang")
     jenis = st.selectbox("Jenis", ["Masuk", "Keluar"])
-    jumlah = st.number_input("Jumlah (Rp)", min_value=0)
+with col2:
+    jumlah = st.number_input("Jumlah", 0)
+    ket_b = st.text_input("Keterangan Barang")
 
-    bukti_file = st.file_uploader("Upload Bukti (Opsional)", type=["jpg","jpeg","png"])
+bukti_b = st.file_uploader("Upload Bukti Barang (Opsional)", type=["jpg","jpeg","png","pdf"], key="buktibarang")
 
-    if st.button("Simpan"):
-        bukti_name = ""
-        if bukti_file:
-            ext = bukti_file.name.split(".")[-1]
-            bukti_name = f"uang_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
-            with open(os.path.join(BUKTI_FOLDER, bukti_name), "wb") as f:
-                f.write(bukti_file.getbuffer())
+if st.button("Simpan Barang"):
+    bukti_path_b = upload_bukti(bukti_b)
 
-        df.loc[len(df)] = [tgl, ket, jenis, jumlah, bukti_name]
-        save_local(df, "data/keuangan.csv")
+    new_b = pd.DataFrame({
+        "Tanggal": [str(tgl_b)],
+        "Jenis": [jenis],
+        "Jumlah": [jumlah],
+        "Keterangan": [ket_b],
+        "Bukti": [bukti_path_b]
+    })
 
-        st.success("Data berhasil disimpan!")
+    df_b = pd.concat([df_b, new_b], ignore_index=True)
+    save_csv(df_b, BARANG_FILE)
+    log_aktivitas(f"Input barang: {jenis} {jumlah} ({ket_b})")
 
-# ======================================================
-# INPUT BARANG
-# ======================================================
-elif menu == "Input Barang":
-    st.subheader("📦 Input Data Barang")
-
-    tgl = st.date_input("Tanggal")
-    nama = st.text_input("Nama Barang")
-    jenis = st.selectbox("Jenis Barang", ["Masuk", "Keluar"])
-    jumlah = st.number_input("Jumlah", min_value=1)
-
-    bukti_file = st.file_uploader("Upload Bukti (Opsional)", type=["jpg","jpeg","png"])
-
-    if st.button("Simpan"):
-        bukti_name = ""
-        if bukti_file:
-            ext = bukti_file.name.split(".")[-1]
-            bukti_name = f"barang_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
-            with open(os.path.join(BUKTI_FOLDER, bukti_name), "wb") as f:
-                f.write(bukti_file.getbuffer())
-
-        df_barang.loc[len[df_barang]] = [tgl, nama, jenis, jumlah, bukti_name]
-        save_local(df_barang, "data/barang.csv")
-
-        st.success("Data barang berhasil disimpan!")
+    st.success("Data barang berhasil disimpan!")
 
 # ======================================================
-# LAPORAN
+#  LOG AKTIVITAS (PALING BAWAH)
 # ======================================================
-elif menu == "Laporan":
-    st.subheader("📄 Laporan Keuangan (Uang)")
+st.subheader("📜 Log Aktivitas Admin")
 
-    df_show = df.copy()
-    df_show["preview_bukti"] = df_show["bukti"].apply(
-        lambda x: f"![bukti](bukti/{x})" if x else "-"
-    )
-
-    st.write(df_show[["tanggal","keterangan","jenis","jumlah","preview_bukti"]])
-
-    # ======================================================
-    # TAMBAHAN PENTING: LAPORAN BARANG
-    # ======================================================
-    st.subheader("📦 Laporan Barang (Non-Uang)")
-
-    df_barang_show = df_barang.copy()
-    df_barang_show["preview_bukti"] = df_barang_show["bukti"].apply(
-        lambda x: f"![bukti](bukti/{x})" if x else "-"
-    )
-
-    st.write(df_barang_show[["tanggal","nama_barang","jenis","jumlah","preview_bukti"]])
-
-# ======================================================
-# LOG AKTIVITAS
-# ======================================================
-elif menu == "Log Aktivitas":
-    st.subheader("📝 Log Aktivitas")
-
-    try:
-        log_df = pd.read_csv(LOG_FILE)
-        st.dataframe(log_df)
-    except:
-        st.info("Belum ada log aktivitas.")
+if os.path.exists(LOG_FILE):
+    st.dataframe(pd.read_csv(LOG_FILE), use_container_width=True)
+else:
+    st.info("Belum ada aktivitas.")
