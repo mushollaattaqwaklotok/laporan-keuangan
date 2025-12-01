@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
+from git import Repo
 
 # =====================================================
 #  KONFIGURASI AWAL
@@ -32,11 +33,8 @@ PANITIA = {
 # =====================================================
 st.markdown("""
 <style>
-
 .stApp { background-color: #f4f7f5 !important; }
-
 h1,h2,h3,h4 { color:#0b6e4f !important; font-weight:800; }
-
 .header-box {
     background: linear-gradient(90deg,#0b6e4f,#18a36d);
     padding:22px 26px; border-radius:14px;
@@ -44,45 +42,20 @@ h1,h2,h3,h4 { color:#0b6e4f !important; font-weight:800; }
 }
 .header-title { font-size:30px; font-weight:900; }
 .header-sub { opacity:.85; margin-top:-6px; }
-
-section[data-testid="stSidebar"] {
-    background:#0b6e4f; padding:20px;
-}
+section[data-testid="stSidebar"] { background:#0b6e4f; padding:20px; }
 section[data-testid="stSidebar"] * { color:white !important; }
-
 .stButton>button {
     background: linear-gradient(90deg,#0b6e4f,#18a36d);
     color:white !important; font-weight:700;
     padding:8px 22px; border-radius:10px;
 }
-.stButton>button:hover {
-    background: linear-gradient(90deg,#18a36d,#0b6e4f);
-    transform:scale(1.03);
-}
-
-input, textarea, select {
-    border-radius:10px !important;
-    border:1px solid #0b6e4f !important;
-}
-
-.infocard {
-    background:white; border-radius:14px;
-    padding:18px; text-align:center;
-    border:1px solid #d9e9dd;
-    margin-bottom:15px;
-}
+.stButton>button:hover { background: linear-gradient(90deg,#18a36d,#0b6e4f); transform:scale(1.03); }
+input, textarea, select { border-radius:10px !important; border:1px solid #0b6e4f !important; }
+.infocard { background:white; border-radius:14px; padding:18px; text-align:center; border:1px solid #d9e9dd; margin-bottom:15px; }
 .infocard h3 { margin:4px 0; font-size:20px; }
 .infocard p { margin:0; font-weight:700; font-size:18px; }
-
-.dataframe th {
-    background:#0b6e4f !important;
-    color:white !important;
-    padding:8px !important;
-}
-.dataframe td {
-    padding:6px !important;
-    border:1px solid #c8e6d3 !important;
-}
+.dataframe th { background:#0b6e4f !important; color:white !important; padding:8px !important; }
+.dataframe td { padding:6px !important; border:1px solid #c8e6d3 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -108,6 +81,22 @@ def preview_link(url):
     if pd.isna(url) or url == "":
         return "-"
     return f"[Lihat Bukti]({url})"
+
+# =====================================================
+#  FUNGSI PUSH KE GITHUB
+# =====================================================
+def git_push(file_paths, commit_msg="Update data otomatis"):
+    """Commit & push file CSV ke GitHub repo."""
+    try:
+        repo_dir = os.getcwd()
+        repo = Repo(repo_dir)
+        repo.index.add(file_paths)
+        repo.index.commit(commit_msg)
+        origin = repo.remote(name='origin')
+        origin.push()
+        st.success("✅ Data berhasil di-push ke GitHub.")
+    except Exception as e:
+        st.error(f"❌ Gagal push ke GitHub: {e}")
 
 # =====================================================
 #  LOAD DATA
@@ -138,7 +127,6 @@ st.markdown("""
 #  LOGIN
 # =====================================================
 st.sidebar.header("Login sebagai:")
-
 level = st.sidebar.radio("", [
     "Publik",
     "Ketua",
@@ -165,39 +153,19 @@ menu = st.sidebar.radio("Menu:", ["💰 Keuangan", "📦 Barang Masuk", "📄 La
 #  DASHBOARD KEUANGAN
 # =====================================================
 if menu == "💰 Keuangan":
-
     st.header("💰 Keuangan")
-
-    # Dashboard Card
     if len(df_keu) > 0:
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown(f"""
-            <div class='infocard'>
-                <h3>Total Masuk</h3>
-                <p>Rp {df_keu['Masuk'].sum():,}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div class='infocard'><h3>Total Masuk</h3><p>Rp {df_keu['Masuk'].sum():,}</p></div>", unsafe_allow_html=True)
         with col2:
-            st.markdown(f"""
-            <div class='infocard'>
-                <h3>Total Keluar</h3>
-                <p>Rp {df_keu['Keluar'].sum():,}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div class='infocard'><h3>Total Keluar</h3><p>Rp {df_keu['Keluar'].sum():,}</p></div>", unsafe_allow_html=True)
         with col3:
-            st.markdown(f"""
-            <div class='infocard'>
-                <h3>Saldo Akhir</h3>
-                <p>Rp {df_keu['Saldo'].iloc[-1]:,}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div class='infocard'><h3>Saldo Akhir</h3><p>Rp {df_keu['Saldo'].iloc[-1]:,}</p></div>", unsafe_allow_html=True)
 
-    # Input Keuangan (hanya panitia)
     st.subheader("Input Keuangan")
     if level == "Publik":
         st.info("🔒 Hanya panitia yang dapat input data.")
-        # Tombol download CSV untuk publik
         if len(df_keu) > 0:
             st.download_button(
                 label="⬇️ Download Laporan Keuangan (CSV)",
@@ -221,23 +189,12 @@ if menu == "💰 Keuangan":
                     f.write(bukti.read())
 
             saldo_akhir = (df_keu["Saldo"].iloc[-1] if len(df_keu) else 0) + masuk - keluar
-
-            new_row = {
-                "Tanggal": str(tgl),
-                "Keterangan": ket,
-                "Kategori": kategori,
-                "Masuk": masuk,
-                "Keluar": keluar,
-                "Saldo": saldo_akhir,
-                "bukti_url": bukti_url
-            }
-
+            new_row = {"Tanggal": str(tgl), "Keterangan": ket, "Kategori": kategori, "Masuk": masuk, "Keluar": keluar, "Saldo": saldo_akhir, "bukti_url": bukti_url}
             df_keu = pd.concat([df_keu, pd.DataFrame([new_row])], ignore_index=True)
             save_csv(df_keu, FILE_KEUANGAN)
+            git_push([FILE_KEUANGAN], commit_msg=f"Update keuangan {tgl}")
+            st.success("Data berhasil disimpan dan di-push ke GitHub!")
 
-            st.success("Data berhasil disimpan!")
-
-    # Tabel Laporan
     if len(df_keu) > 0:
         df_show = df_keu.copy()
         df_show["Bukti"] = df_show["bukti_url"].apply(preview_link)
@@ -247,9 +204,7 @@ if menu == "💰 Keuangan":
 #  BARANG MASUK
 # =====================================================
 elif menu == "📦 Barang Masuk":
-
     st.header("📦 Barang Masuk")
-
     if level == "Publik":
         st.info("🔒 Hanya panitia yang dapat input data.")
         if len(df_barang) > 0:
@@ -274,18 +229,11 @@ elif menu == "📦 Barang Masuk":
                 with open(bukti_url, "wb") as f:
                     f.write(bukti_b.read())
 
-            new_b = {
-                "tanggal": str(tgl_b),
-                "jenis": jenis_b,
-                "keterangan": ket_b,
-                "jumlah": jml_b,
-                "satuan": satuan_b,
-                "bukti": bukti_url,
-                "bukti_penerimaan": bukti_url
-            }
+            new_b = {"tanggal": str(tgl_b), "jenis": jenis_b, "keterangan": ket_b, "jumlah": jml_b, "satuan": satuan_b, "bukti": bukti_url, "bukti_penerimaan": bukti_url}
             df_barang = pd.concat([df_barang, pd.DataFrame([new_b])], ignore_index=True)
             save_csv(df_barang, FILE_BARANG)
-            st.success("Data barang berhasil disimpan!")
+            git_push([FILE_BARANG], commit_msg=f"Update barang {tgl_b}")
+            st.success("Data barang berhasil disimpan dan di-push ke GitHub!")
 
     st.write(df_barang)
 
@@ -293,7 +241,6 @@ elif menu == "📦 Barang Masuk":
 #  LAPORAN
 # =====================================================
 elif menu == "📄 Laporan":
-
     st.header("📄 Laporan Keuangan")
     if len(df_keu) > 0:
         df_show = df_keu.copy()
