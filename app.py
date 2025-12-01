@@ -125,7 +125,7 @@ df_barang = load_csv_safe(
 # =====================================================
 st.markdown("""
 <div class="header-box">
-    <div class="header-title">📊 Sistem Keuangan Musholla At-Taqwa RT 1</div>
+    <div class="header-title">Laporan Keuangan Musholla At-Taqwa</div>
     <div class="header-sub">Transparansi • Amanah • Profesional</div>
 </div>
 """, unsafe_allow_html=True)
