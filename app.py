@@ -2,10 +2,14 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime, timedelta, timezone
+import requests
+import base64
+import io
 
 # ======================================================
 #  KONFIGURASI UTAMA
 # ======================================================
+# (lokal fallback)
 DATA_FILE = "data/keuangan.csv"
 LOG_FILE = "data/log_aktivitas.csv"
 
@@ -25,44 +29,226 @@ PANITIA_USERS = {
 PUBLIK_MODE = "PUBLIK"
 PANITIA_MODE = "PANITIA"
 
-# Pastikan folder data ada
+# Pastikan folder data ada (untuk fallback lokal)
 os.makedirs("data", exist_ok=True)
 
 # ======================================================
-#  FUNGSI DATA
+#  KONFIGURASI GITHUB (ambil dari st.secrets jika ada)
 # ======================================================
+# Streamlit Secrets yang dianjurkan:
+# GITHUB_TOKEN, GITHUB_REPO, (opsional) GITHUB_DATA_PATH, GITHUB_LOG_PATH
+GITHUB_TOKEN = None
+GITHUB_REPO = None
+GITHUB_DATA_PATH = None
+GITHUB_LOG_PATH = None
+
+if "GITHUB_TOKEN" in st.secrets:
+    GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+if "GITHUB_REPO" in st.secrets:
+    GITHUB_REPO = st.secrets["GITHUB_REPO"]
+if "GITHUB_DATA_PATH" in st.secrets:
+    GITHUB_DATA_PATH = st.secrets["GITHUB_DATA_PATH"]
+if "GITHUB_LOG_PATH" in st.secrets:
+    GITHUB_LOG_PATH = st.secrets["GITHUB_LOG_PATH"]
+
+# defaults
+if not GITHUB_DATA_PATH:
+    GITHUB_DATA_PATH = "data/keuangan.csv"
+if not GITHUB_LOG_PATH:
+    GITHUB_LOG_PATH = "data/log_aktivitas.csv"
+
+# Helper: raw URL (untuk membaca cepat)
+def github_raw_url(repo, path, branch="main"):
+    return f"https://raw.githubusercontent.com/{repo}/{branch}/{path}"
+
+# ======================================================
+#  GITHUB HELPERS (GET content, PUT update)
+# ======================================================
+def github_get_file(repo, path):
+    """
+    Mengambil file content & sha via GitHub API.
+    Returns (content_text, sha) or (None, None) jika tidak ditemukan / error.
+    """
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return None, None
+
+    url = f"https://api.github.com/repos/{repo}/contents/{path}"
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}"}
+    r = requests.get(url, headers=headers)
+    if r.status_code == 200:
+        j = r.json()
+        content_b64 = j.get("content", "")
+        sha = j.get("sha", None)
+        # decode
+        try:
+            content = base64.b64decode(content_b64).decode("utf-8")
+        except Exception:
+            content = None
+        return content, sha
+    else:
+        # not found or access denied
+        return None, None
+
+def github_put_file(repo, path, content_text, commit_message="Update via Streamlit", sha=None):
+    """
+    Membuat atau memperbarui file di repo GitHub.
+    Jika sha diberikan -> update, jika tidak -> create.
+    Returns True jika berhasil.
+    """
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return False
+
+    url = f"https://api.github.com/repos/{repo}/contents/{path}"
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}"}
+    encoded = base64.b64encode(content_text.encode()).decode()
+    payload = {
+        "message": commit_message,
+        "content": encoded
+    }
+    if sha:
+        payload["sha"] = sha
+
+    r = requests.put(url, headers=headers, json=payload)
+    return r.status_code in (200, 201)
+
+# ======================================================
+#  FUNGSI DATA (men-support GitHub atau fallback lokal)
+# ======================================================
+def ensure_local_file(path, columns):
+    """
+    Pastikan file lokal ada. Jika belum, buat dengan header.
+    """
+    if not os.path.exists(path):
+        df = pd.DataFrame(columns=columns)
+        df.to_csv(path, index=False)
+
 def load_data():
-    if not os.path.exists(DATA_FILE):
-        df = pd.DataFrame(columns=["Tanggal", "Keterangan", "Masuk", "Keluar", "Saldo"])
-        df.to_csv(DATA_FILE, index=False)
+    # Jika konfigurasi GitHub tersedia, coba ambil dari raw URL (cepat)
+    if GITHUB_TOKEN and GITHUB_REPO:
+        raw = github_raw_url(GITHUB_REPO, GITHUB_DATA_PATH)
+        try:
+            df = pd.read_csv(raw)
+            return df
+        except Exception:
+            # jika raw gagal (mungkin file belum ada), coba lewat API
+            content, sha = github_get_file(GITHUB_REPO, GITHUB_DATA_PATH)
+            if content:
+                try:
+                    df = pd.read_csv(io.StringIO(content))
+                    return df
+                except Exception:
+                    pass
+            # kalau tidak ada, fallback ke lokal (dan pastikan file lokal ada)
+    # fallback lokal
+    ensure_local_file(DATA_FILE, ["Tanggal", "Keterangan", "Masuk", "Keluar", "Saldo"])
     return pd.read_csv(DATA_FILE)
 
 def save_data(df):
-    df.to_csv(DATA_FILE, index=False)
+    # jika GitHub tersedia -> upload via API (replace/overwrite)
+    csv_text = df.to_csv(index=False)
+    if GITHUB_TOKEN and GITHUB_REPO:
+        # ambil sha bila ada
+        _, sha = github_get_file(GITHUB_REPO, GITHUB_DATA_PATH)
+        ok = github_put_file(GITHUB_REPO, GITHUB_DATA_PATH, csv_text, commit_message="Update keuangan.csv via Streamlit", sha=sha)
+        if ok:
+            return True
+        else:
+            # jika gagal, juga tulis lokal agar tidak hilang
+            df.to_csv(DATA_FILE, index=False)
+            return False
+    else:
+        # fallback lokal
+        df.to_csv(DATA_FILE, index=False)
+        return True
+
+# ======================================================
+#  FUNGSI LOG (pakai GitHub juga jika tersedia)
+# ======================================================
+def ensure_remote_log_exists():
+    # create empty log in repo if not exist
+    if GITHUB_TOKEN and GITHUB_REPO:
+        content, sha = github_get_file(GITHUB_REPO, GITHUB_LOG_PATH)
+        if content is None:
+            # buat file kosong dengan header
+            header_df = pd.DataFrame(columns=["Waktu", "Pengguna", "Aksi", "Detail"])
+            github_put_file(GITHUB_REPO, GITHUB_LOG_PATH, header_df.to_csv(index=False), commit_message="Create log_aktivitas.csv via Streamlit")
 
 def load_log():
-    if not os.path.exists(LOG_FILE):
-        df = pd.DataFrame(columns=["Waktu", "Pengguna", "Aksi", "Detail"])
-        df.to_csv(LOG_FILE, index=False)
+    if GITHUB_TOKEN and GITHUB_REPO:
+        raw = github_raw_url(GITHUB_REPO, GITHUB_LOG_PATH)
+        try:
+            df = pd.read_csv(raw)
+            return df
+        except Exception:
+            content, sha = github_get_file(GITHUB_REPO, GITHUB_LOG_PATH)
+            if content:
+                try:
+                    df = pd.read_csv(io.StringIO(content))
+                    return df
+                except Exception:
+                    pass
+    ensure_local_file(LOG_FILE, ["Waktu", "Pengguna", "Aksi", "Detail"])
     return pd.read_csv(LOG_FILE)
 
 def save_log(user, aksi, detail=""):
-    df = load_log()
-    new_row = {
-        "Waktu": datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S"),
-        "Pengguna": user,
-        "Aksi": aksi,
-        "Detail": detail
-    }
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    df.to_csv(LOG_FILE, index=False)
+    waktu = datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")
+    new_row = {"Waktu": waktu, "Pengguna": user, "Aksi": aksi, "Detail": detail}
+
+    if GITHUB_TOKEN and GITHUB_REPO:
+        # ambil existing content, append, dan tulis kembali
+        content, sha = github_get_file(GITHUB_REPO, GITHUB_LOG_PATH)
+        if content:
+            try:
+                df = pd.read_csv(io.StringIO(content))
+            except Exception:
+                df = pd.DataFrame(columns=["Waktu", "Pengguna", "Aksi", "Detail"])
+        else:
+            df = pd.DataFrame(columns=["Waktu", "Pengguna", "Aksi", "Detail"])
+
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        ok = github_put_file(GITHUB_REPO, GITHUB_LOG_PATH, df.to_csv(index=False), commit_message="Update log_aktivitas.csv via Streamlit", sha=sha)
+        if ok:
+            return True
+        else:
+            # fallback lokal
+            df.to_csv(LOG_FILE, index=False)
+            return False
+    else:
+        # fallback lokal
+        df = load_log()
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        df.to_csv(LOG_FILE, index=False)
+        return True
 
 def clear_log():
+    # clear local + remote
     df = pd.DataFrame(columns=["Waktu", "Pengguna", "Aksi", "Detail"])
+    if GITHUB_TOKEN and GITHUB_REPO:
+        _, sha = github_get_file(GITHUB_REPO, GITHUB_LOG_PATH)
+        github_put_file(GITHUB_REPO, GITHUB_LOG_PATH, df.to_csv(index=False), commit_message="Reset log_aktivitas.csv via Streamlit", sha=sha)
     df.to_csv(LOG_FILE, index=False)
 
 # ======================================================
-#  TEMA WARNA NU
+#  Pastikan file remote ada (saat app start)
+# ======================================================
+if GITHUB_TOKEN and GITHUB_REPO:
+    # Jika remote belum ada, buat file minimal agar tidak error
+    # Data file
+    content, sha = github_get_file(GITHUB_REPO, GITHUB_DATA_PATH)
+    if content is None:
+        # buat file data dengan header & saldo awal 0
+        df0 = pd.DataFrame([{"Tanggal": datetime.now(TZ).strftime("%Y-%m-%d"),
+                             "Keterangan": "Saldo Awal",
+                             "Masuk": 0,
+                             "Keluar": 0,
+                             "Saldo": 0}])
+        github_put_file(GITHUB_REPO, GITHUB_DATA_PATH, df0.to_csv(index=False), commit_message="Create keuangan.csv via Streamlit")
+
+    # Log file
+    ensure_remote_log_exists()
+
+# ======================================================
+#  TEMA WARNA NU (tidak diubah)
 # ======================================================
 st.markdown("""
     <style>
@@ -151,6 +337,8 @@ else:
         keluar = st.number_input("Uang Keluar", min_value=0, step=1000)
 
     if st.button("Simpan Data"):
+        # recalc saldo: ambil saldo terakhir dari sumber (remote jika ada)
+        df = load_data()
         saldo_akhir = df["Saldo"].iloc[-1] if not df.empty else 0
         saldo_baru = saldo_akhir + masuk - keluar
 
@@ -163,16 +351,20 @@ else:
         }
 
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        save_data(df)
 
+        ok = save_data(df)
         save_log(username, "Tambah Data", f"{keterangan} | +{masuk} / -{keluar}")
 
-        st.success("Data berhasil disimpan!")
+        if ok:
+            st.success("Data berhasil disimpan!")
+        else:
+            st.warning("Data disimpan lokal karena gagal menyimpan ke GitHub.")
 
     # -------------------------
     # TABEL KEUANGAN
     # -------------------------
     st.subheader("📄 Tabel Keuangan")
+    df = load_data()
     st.dataframe(df, use_container_width=True)
 
     # -------------------------
@@ -189,11 +381,13 @@ else:
         if st.button("Hapus Baris"):
             deleted = df.iloc[idx].to_dict()
             df = df.drop(idx).reset_index(drop=True)
-            save_data(df)
-
+            ok = save_data(df)
             save_log(username, "Hapus Data", str(deleted))
 
-            st.success("Baris berhasil dihapus!")
+            if ok:
+                st.success("Baris berhasil dihapus!")
+            else:
+                st.warning("Perubahan disimpan lokal karena gagal menyimpan ke GitHub.")
 
     # -------------------------
     # DOWNLOAD CSV
