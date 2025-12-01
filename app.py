@@ -2,10 +2,9 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
-from io import StringIO
 
 # ======================================================
-#  KONFIGURASI UTAMA
+#  KONFIGURASI
 # ======================================================
 DATA_UANG = "https://raw.githubusercontent.com/mushollaattaqwaklotok/laporan-keuangan/main/data/keuangan.csv"
 DATA_BARANG = "https://raw.githubusercontent.com/mushollaattaqwaklotok/laporan-keuangan/main/data/barang.csv"
@@ -18,47 +17,46 @@ os.makedirs(BUKTI_FOLDER, exist_ok=True)
 # LOAD DATA
 # ======================================================
 @st.cache_data
-def load_csv(url_or_path, columns=None):
+def load_csv(url, expected_cols):
     try:
-        df = pd.read_csv(url_or_path)
-        if columns:
-            for c in columns:
-                if c not in df.columns:
-                    df[c] = ""
+        df = pd.read_csv(url)
+        for col in expected_cols:
+            if col not in df.columns:
+                df[col] = ""
         return df
     except:
-        return pd.DataFrame(columns=columns)
+        return pd.DataFrame(columns=expected_cols)
 
 df = load_csv(DATA_UANG, ["tanggal","keterangan","jenis","jumlah","bukti"])
 df_barang = load_csv(DATA_BARANG, ["tanggal","nama_barang","jenis","jumlah","bukti"])
 
 # ======================================================
-# SIMPAN KE GITHUB (RAW UPDATE)
+# SAVE TO REPO
 # ======================================================
-def save_to_repo(df, path):
+def save_local(df, path):
     df.to_csv(path, index=False)
 
 # ======================================================
-# TAMPILAN APLIKASI
+# TAMPILAN UTAMA
 # ======================================================
 st.title("📊 Laporan Keuangan Musholla At-Taqwa RT 1 — Dusun Klotok")
 
 menu = st.sidebar.radio("Menu", ["Input Uang", "Input Barang", "Laporan", "Log Aktivitas"])
 
 # ======================================================
-# 1. INPUT UANG
+# INPUT UANG
 # ======================================================
 if menu == "Input Uang":
-    st.subheader("➕ Input Pemasukan / Pengeluaran Uang")
+    st.subheader("➕ Input Data Keuangan")
 
-    tanggal = st.date_input("Tanggal")
-    keterangan = st.text_input("Keterangan")
+    tgl = st.date_input("Tanggal")
+    ket = st.text_input("Keterangan")
     jenis = st.selectbox("Jenis", ["Masuk", "Keluar"])
     jumlah = st.number_input("Jumlah (Rp)", min_value=0)
 
-    bukti_file = st.file_uploader("Upload Foto Nota (optional)", type=["jpg","png","jpeg"])
+    bukti_file = st.file_uploader("Upload Bukti (Opsional)", type=["jpg","jpeg","png"])
 
-    if st.button("Simpan Data Uang"):
+    if st.button("Simpan"):
         bukti_name = ""
         if bukti_file:
             ext = bukti_file.name.split(".")[-1]
@@ -66,33 +64,25 @@ if menu == "Input Uang":
             with open(os.path.join(BUKTI_FOLDER, bukti_name), "wb") as f:
                 f.write(bukti_file.getbuffer())
 
-        new_row = {
-            "tanggal": tanggal,
-            "keterangan": keterangan,
-            "jenis": jenis,
-            "jumlah": jumlah,
-            "bukti": bukti_name
-        }
+        df.loc[len(df)] = [tgl, ket, jenis, jumlah, bukti_name]
+        save_local(df, "data/keuangan.csv")
 
-        df.loc[len(df)] = new_row
-        save_to_repo(df, "data/keuangan.csv")
-
-        st.success("Data uang berhasil disimpan!")
+        st.success("Data berhasil disimpan!")
 
 # ======================================================
-# 2. INPUT BARANG
+# INPUT BARANG
 # ======================================================
 elif menu == "Input Barang":
-    st.subheader("📦 Input Data Barang (Non-Uang)")
+    st.subheader("📦 Input Data Barang")
 
-    tanggal = st.date_input("Tanggal")
-    nama_barang = st.text_input("Nama Barang")
-    jenis = st.selectbox("Status Barang", ["Masuk", "Keluar"])
+    tgl = st.date_input("Tanggal")
+    nama = st.text_input("Nama Barang")
+    jenis = st.selectbox("Jenis Barang", ["Masuk", "Keluar"])
     jumlah = st.number_input("Jumlah", min_value=1)
 
-    bukti_file = st.file_uploader("Upload Foto Bukti (opsional)", type=["jpg","png","jpeg"])
+    bukti_file = st.file_uploader("Upload Bukti (Opsional)", type=["jpg","jpeg","png"])
 
-    if st.button("Simpan Data Barang"):
+    if st.button("Simpan"):
         bukti_name = ""
         if bukti_file:
             ext = bukti_file.name.split(".")[-1]
@@ -100,72 +90,44 @@ elif menu == "Input Barang":
             with open(os.path.join(BUKTI_FOLDER, bukti_name), "wb") as f:
                 f.write(bukti_file.getbuffer())
 
-        new_row = {
-            "tanggal": tanggal,
-            "nama_barang": nama_barang,
-            "jenis": jenis,
-            "jumlah": jumlah,
-            "bukti": bukti_name
-        }
-
-        df_barang.loc[len(df_barang)] = new_row
-        save_to_repo(df_barang, "data/barang.csv")
+        df_barang.loc[len[df_barang]] = [tgl, nama, jenis, jumlah, bukti_name]
+        save_local(df_barang, "data/barang.csv")
 
         st.success("Data barang berhasil disimpan!")
 
 # ======================================================
-# 3. LAPORAN (TAMPILAN PUBLIK)
+# LAPORAN
 # ======================================================
 elif menu == "Laporan":
-    st.subheader("📄 Laporan Keuangan Uang")
+    st.subheader("📄 Laporan Keuangan (Uang)")
 
-    df_display = df.copy()
-    df_display["preview"] = df_display["bukti"].apply(
+    df_show = df.copy()
+    df_show["preview_bukti"] = df_show["bukti"].apply(
         lambda x: f"![bukti](bukti/{x})" if x else "-"
     )
 
-    st.write(df_display[["tanggal","keterangan","jenis","jumlah","preview"]])
+    st.write(df_show[["tanggal","keterangan","jenis","jumlah","preview_bukti"]])
 
-    # ======================
-    st.subheader("📦 Laporan Barang")
+    # ======================================================
+    # TAMBAHAN PENTING: LAPORAN BARANG
+    # ======================================================
+    st.subheader("📦 Laporan Barang (Non-Uang)")
 
-    df_barang_display = df_barang.copy()
-    df_barang_display["preview"] = df_barang_display["bukti"].apply(
+    df_barang_show = df_barang.copy()
+    df_barang_show["preview_bukti"] = df_barang_show["bukti"].apply(
         lambda x: f"![bukti](bukti/{x})" if x else "-"
     )
 
-    st.write(df_barang_display[["tanggal","nama_barang","jenis","jumlah","preview"]])
-
-    # Button download semua CSV
-    st.subheader("⬇️ Download Semua Data")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.download_button(
-            "Download Keuangan (CSV)",
-            df.to_csv(index=False),
-            "keuangan.csv",
-            "text/csv"
-        )
-
-    with col2:
-        st.download_button(
-            "Download Barang (CSV)",
-            df_barang.to_csv(index=False),
-            "barang.csv",
-            "text/csv"
-        )
+    st.write(df_barang_show[["tanggal","nama_barang","jenis","jumlah","preview_bukti"]])
 
 # ======================================================
-# 4. LOG AKTIVITAS (PALING BAWAH)
+# LOG AKTIVITAS
 # ======================================================
 elif menu == "Log Aktivitas":
-    st.subheader("📝 Log Aktivitas Sistem")
+    st.subheader("📝 Log Aktivitas")
 
     try:
         log_df = pd.read_csv(LOG_FILE)
         st.dataframe(log_df)
     except:
         st.info("Belum ada log aktivitas.")
-
