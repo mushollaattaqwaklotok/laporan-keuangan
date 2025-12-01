@@ -100,6 +100,7 @@ input, textarea, select {
 # =====================================================
 
 def load_csv_safe(local_file, github_url, columns):
+"""Jika lokal ada → pakai lokal. Jika tidak → pakai GitHub."""
 if os.path.exists(local_file):
 try:
 return pd.read_csv(local_file)
@@ -223,7 +224,7 @@ if len(df_keu) > 0:
 st.subheader("Input Keuangan")
 if level == "Publik":
     st.info("🔒 Hanya panitia yang dapat input data.")
-    # Download CSV
+    # Tombol download CSV untuk publik
     if len(df_keu) > 0:
         st.download_button(
             label="⬇️ Download Laporan Keuangan (CSV)",
@@ -283,7 +284,6 @@ st.header("📦 Barang Masuk")
 
 if level == "Publik":
     st.info("🔒 Hanya panitia yang dapat input data.")
-    # Download CSV
     if len(df_barang) > 0:
         st.download_button(
             label="⬇️ Download Data Barang (CSV)",
