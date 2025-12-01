@@ -53,7 +53,7 @@ USERS = {
     "Koor Donasi 2": "roni9044",
 
     # akun publik
-    "Publik": "publik123",
+    "Publik": "",
 }
 
 user = st.sidebar.selectbox("Login sebagai:", USERS.keys())
