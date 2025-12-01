@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
-from github import Github
+from github import Github, GithubException
 
 # =====================================================
 
@@ -32,59 +32,36 @@ PANITIA = {
 
 # =====================================================
 
-# GITHUB PAT
+# GITHUB PAT (letakkan token fine-grained di sini)
 
 # =====================================================
 
-GITHUB_PAT = "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"
+GITHUB_PAT = "PASTE_YOUR_FINE_GRAINED_TOKEN_HERE"
 REPO_NAME = "mushollaattaqwaklotok/laporan-keuangan"
+
+try:
 g = Github(GITHUB_PAT)
 repo = g.get_repo(REPO_NAME)
+st.sidebar.success("✅ GitHub token valid")
+except GithubException as e:
+st.sidebar.error(f"❌ Token invalid atau repo tidak ditemukan: {e}")
+st.stop()
 
 # =====================================================
 
-# UI STYLE
-
-# =====================================================
-
-st.markdown("""
-
-<style>
-.stApp { background-color: #f4f7f5 !important; }
-h1,h2,h3,h4 { color:#0b6e4f !important; font-weight:800; }
-.header-box { background: linear-gradient(90deg,#0b6e4f,#18a36d); padding:22px 26px; border-radius:14px; color:white !important; margin-bottom:16px; }
-.header-title { font-size:30px; font-weight:900; }
-.header-sub { opacity:.85; margin-top:-6px; }
-section[data-testid="stSidebar"] { background:#0b6e4f; padding:20px; }
-section[data-testid="stSidebar"] * { color:white !important; }
-.stButton>button { background: linear-gradient(90deg,#0b6e4f,#18a36d); color:white !important; font-weight:700; padding:8px 22px; border-radius:10px; }
-.stButton>button:hover { background: linear-gradient(90deg,#18a36d,#0b6e4f); transform:scale(1.03); }
-input, textarea, select { border-radius:10px !important; border:1px solid #0b6e4f !important; }
-.infocard { background:white; border-radius:14px; padding:18px; text-align:center; border:1px solid #d9e9dd; margin-bottom:15px; }
-.infocard h3 { margin:4px 0; font-size:20px; }
-.infocard p { margin:0; font-weight:700; font-size:18px; }
-.dataframe th { background:#0b6e4f !important; color:white !important; padding:8px !important; }
-.dataframe td { padding:6px !important; border:1px solid #c8e6d3 !important; }
-</style>
-
-""", unsafe_allow_html=True)
-
-# =====================================================
-
-# FUNGSI UTILITAS
+# UTILITAS
 
 # =====================================================
 
 def load_csv_safe(local_file, github_url, columns):
-"""Muat CSV lokal jika ada, jika tidak muat dari GitHub"""
 if os.path.exists(local_file):
 try:
 return pd.read_csv(local_file)
-except Exception:
+except:
 return pd.DataFrame(columns=columns)
 try:
 return pd.read_csv(github_url)
-except Exception:
+except:
 return pd.DataFrame(columns=columns)
 
 def save_csv(df, file):
@@ -102,8 +79,10 @@ content = f.read()
 try:
 contents = repo.get_contents(f"data/{file_name}")
 repo.update_file(contents.path, commit_msg, content, contents.sha)
+st.success(f"✅ Berhasil push {file_name} ke GitHub")
 except Exception:
 repo.create_file(f"data/{file_name}", commit_msg, content)
+st.success(f"✅ File {file_name} dibuat di GitHub")
 
 # =====================================================
 
@@ -122,9 +101,9 @@ df_barang = load_csv_safe(FILE_BARANG, GITHUB_BARANG, ["tanggal","jenis","ketera
 
 st.markdown("""
 
-<div class="header-box">
-    <div class="header-title">Laporan Keuangan Musholla At-Taqwa</div>
-    <div class="header-sub">Transparansi • Amanah • Profesional</div>
+<div style="background: linear-gradient(90deg,#0b6e4f,#18a36d); padding:20px; border-radius:12px; color:white;">
+<h2>Laporan Keuangan Musholla At-Taqwa</h2>
+<p>Transparansi • Amanah • Profesional</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -153,22 +132,25 @@ menu = st.sidebar.radio("Menu:", ["💰 Keuangan", "📦 Barang Masuk", "📄 La
 
 # =====================================================
 
-# KEUANGAN
+# DASHBOARD KEUANGAN
 
 # =====================================================
 
 if menu == "💰 Keuangan":
 st.header("💰 Keuangan")
-if len(df_keu) > 0:
-col1, col2, col3 = st.columns(3)
-with col1:
-st.markdown(f"<div class='infocard'><h3>Total Masuk</h3><p>Rp {df_keu['Masuk'].sum():,}</p></div>", unsafe_allow_html=True)
-with col2:
-st.markdown(f"<div class='infocard'><h3>Total Keluar</h3><p>Rp {df_keu['Keluar'].sum():,}</p></div>", unsafe_allow_html=True)
-with col3:
-st.markdown(f"<div class='infocard'><h3>Saldo Akhir</h3><p>Rp {df_keu['Saldo'].iloc[-1]:,}</p></div>", unsafe_allow_html=True)
 
 ```
+# Info Card
+if len(df_keu) > 0:
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"<div style='background:white;padding:15px;border-radius:10px;text-align:center;'>Total Masuk<br><b>Rp {df_keu['Masuk'].sum():,}</b></div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"<div style='background:white;padding:15px;border-radius:10px;text-align:center;'>Total Keluar<br><b>Rp {df_keu['Keluar'].sum():,}</b></div>", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"<div style='background:white;padding:15px;border-radius:10px;text-align:center;'>Saldo Akhir<br><b>Rp {df_keu['Saldo'].iloc[-1]:,}</b></div>", unsafe_allow_html=True)
+
+# Input Keuangan
 st.subheader("Input Keuangan")
 if level.lower() == "publik":
     st.info("🔒 Hanya panitia yang dapat input data.")
@@ -203,87 +185,13 @@ else:
                 df_keu = pd.concat([df_keu, pd.DataFrame([new_row])], ignore_index=True)
                 save_csv(df_keu, FILE_KEUANGAN)
                 github_upload(FILE_KEUANGAN, commit_msg=f"Update keuangan {tgl}")
-                st.success("✅ Data berhasil disimpan!")
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan data: {e}")
 
+# Tabel Laporan + Download CSV
 if len(df_keu) > 0:
     df_show = df_keu.copy()
     df_show["Bukti"] = df_show["bukti_url"].apply(preview_link)
     st.write(df_show.to_html(escape=False), unsafe_allow_html=True)
-    st.download_button("📥 Download CSV", df_keu.to_csv(index=False).encode("utf-8"), "laporan_keuangan.csv", "text/csv")
+    st.download_button("📥 Download CSV", df_keu.to_csv(index=False).encode("utf-8"), file_name="laporan_keuangan.csv", mime="text/csv")
 ```
-
-# =====================================================
-
-# BARANG MASUK
-
-# =====================================================
-
-elif menu == "📦 Barang Masuk":
-st.header("📦 Barang Masuk")
-if level.lower() == "publik":
-st.info("🔒 Hanya panitia yang dapat input data.")
-else:
-tgl_b = st.date_input("Tanggal Barang")
-jenis_b = st.text_input("Jenis Barang")
-ket_b = st.text_input("Keterangan")
-jml_b = st.number_input("Jumlah", min_value=0)
-satuan_b = st.text_input("Satuan")
-bukti_b = st.file_uploader("Upload Bukti Penerimaan")
-
-```
-    if st.button("Simpan Barang"):
-        if jenis_b.strip() == "" or ket_b.strip() == "":
-            st.error("❌ Jenis dan Keterangan barang harus diisi!")
-        else:
-            try:
-                bukti_url = ""
-                if bukti_b:
-                    bukti_url = f"{UPLOADS_DIR}/{bukti_b.name}"
-                    with open(bukti_url, "wb") as f:
-                        f.write(bukti_b.read())
-                new_b = {
-                    "tanggal": str(tgl_b),
-                    "jenis": jenis_b,
-                    "keterangan": ket_b,
-                    "jumlah": jml_b,
-                    "satuan": satuan_b,
-                    "bukti": bukti_url,
-                    "bukti_penerimaan": bukti_url
-                }
-                df_barang = pd.concat([df_barang, pd.DataFrame([new_b])], ignore_index=True)
-                save_csv(df_barang, FILE_BARANG)
-                github_upload(FILE_BARANG, commit_msg=f"Update barang {tgl_b}")
-                st.success("✅ Data barang berhasil disimpan!")
-            except Exception as e:
-                st.error(f"❌ Gagal menyimpan data barang: {e}")
-
-if len(df_barang) > 0:
-    st.write(df_barang)
-```
-
-# =====================================================
-
-# LAPORAN
-
-# =====================================================
-
-elif menu == "📄 Laporan":
-st.header("📄 Laporan Keuangan")
-if len(df_keu) > 0:
-df_show = df_keu.copy()
-df_show["Bukti"] = df_show["bukti_url"].apply(preview_link)
-st.write(df_show.to_html(escape=False), unsafe_allow_html=True)
-else:
-st.info("Belum ada data.")
-
-# =====================================================
-
-# LOG
-
-# =====================================================
-
-elif menu == "🧾 Log":
-st.header("🧾 Log Aktivitas")
-st.info("Fitur log akan dibuat jika dibutuhkan.")
