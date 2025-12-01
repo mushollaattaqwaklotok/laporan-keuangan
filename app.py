@@ -15,8 +15,8 @@ GITHUB_KEUANGAN = "https://raw.githubusercontent.com/mushollaattaqwaklotok/lapor
 GITHUB_BARANG = "https://raw.githubusercontent.com/mushollaattaqwaklotok/laporan-keuangan/refs/heads/main/data/barang.csv"
 
 PANITIA = {
-    "ketua": "123",
-    "bendahara": "123"
+    "ketua": "kelas3ku",
+    "bendahara": "hadi5028"
 }
 
 os.makedirs(DATA_DIR, exist_ok=True)
