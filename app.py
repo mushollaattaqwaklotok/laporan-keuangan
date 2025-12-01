@@ -81,7 +81,7 @@ if os.path.exists(local_file):
 try:
 return pd.read_csv(local_file)
 except Exception:
-pass
+return pd.DataFrame(columns=columns)
 try:
 return pd.read_csv(github_url)
 except Exception:
@@ -102,7 +102,7 @@ content = f.read()
 try:
 contents = repo.get_contents(f"data/{file_name}")
 repo.update_file(contents.path, commit_msg, content, contents.sha)
-except:
+except Exception:
 repo.create_file(f"data/{file_name}", commit_msg, content)
 
 # =====================================================
@@ -159,19 +159,16 @@ menu = st.sidebar.radio("Menu:", ["💰 Keuangan", "📦 Barang Masuk", "📄 La
 
 if menu == "💰 Keuangan":
 st.header("💰 Keuangan")
+if len(df_keu) > 0:
+col1, col2, col3 = st.columns(3)
+with col1:
+st.markdown(f"<div class='infocard'><h3>Total Masuk</h3><p>Rp {df_keu['Masuk'].sum():,}</p></div>", unsafe_allow_html=True)
+with col2:
+st.markdown(f"<div class='infocard'><h3>Total Keluar</h3><p>Rp {df_keu['Keluar'].sum():,}</p></div>", unsafe_allow_html=True)
+with col3:
+st.markdown(f"<div class='infocard'><h3>Saldo Akhir</h3><p>Rp {df_keu['Saldo'].iloc[-1]:,}</p></div>", unsafe_allow_html=True)
 
 ```
-# Dashboard Card
-if len(df_keu) > 0:
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"<div class='infocard'><h3>Total Masuk</h3><p>Rp {df_keu['Masuk'].sum():,}</p></div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"<div class='infocard'><h3>Total Keluar</h3><p>Rp {df_keu['Keluar'].sum():,}</p></div>", unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"<div class='infocard'><h3>Saldo Akhir</h3><p>Rp {df_keu['Saldo'].iloc[-1]:,}</p></div>", unsafe_allow_html=True)
-
-# Input Keuangan (hanya panitia)
 st.subheader("Input Keuangan")
 if level.lower() == "publik":
     st.info("🔒 Hanya panitia yang dapat input data.")
@@ -189,7 +186,6 @@ else:
             bukti_url = f"{UPLOADS_DIR}/{bukti.name}"
             with open(bukti_url, "wb") as f:
                 f.write(bukti.read())
-
         saldo_akhir = (df_keu["Saldo"].iloc[-1] if len(df_keu) else 0) + masuk - keluar
         new_row = {
             "Tanggal": str(tgl),
@@ -205,83 +201,12 @@ else:
         github_upload(FILE_KEUANGAN, commit_msg=f"Update keuangan {tgl}")
         st.success("Data berhasil disimpan!")
 
-# Tabel Laporan
 if len(df_keu) > 0:
     df_show = df_keu.copy()
     df_show["Bukti"] = df_show["bukti_url"].apply(preview_link)
     st.write(df_show.to_html(escape=False), unsafe_allow_html=True)
 
-# Tombol Download CSV untuk publik
 st.subheader("Download CSV")
 csv_data = df_keu.to_csv(index=False).encode("utf-8")
 st.download_button("📥 Download CSV", csv_data, file_name="laporan_keuangan.csv", mime="text/csv")
 ```
-
-# =====================================================
-
-# BARANG MASUK
-
-# =====================================================
-
-elif menu == "📦 Barang Masuk":
-st.header("📦 Barang Masuk")
-
-```
-if level.lower() == "publik":
-    st.info("🔒 Hanya panitia yang dapat input data.")
-else:
-    tgl_b = st.date_input("Tanggal Barang")
-    jenis_b = st.text_input("Jenis Barang")
-    ket_b = st.text_input("Keterangan")
-    jml_b = st.number_input("Jumlah", min_value=0)
-    satuan_b = st.text_input("Satuan")
-    bukti_b = st.file_uploader("Upload Bukti Penerimaan")
-
-    if st.button("Simpan Barang"):
-        bukti_url = ""
-        if bukti_b:
-            bukti_url = f"{UPLOADS_DIR}/{bukti_b.name}"
-            with open(bukti_url, "wb") as f:
-                f.write(bukti_b.read())
-
-        new_b = {
-            "tanggal": str(tgl_b),
-            "jenis": jenis_b,
-            "keterangan": ket_b,
-            "jumlah": jml_b,
-            "satuan": satuan_b,
-            "bukti": bukti_url,
-            "bukti_penerimaan": bukti_url
-        }
-        df_barang = pd.concat([df_barang, pd.DataFrame([new_b])], ignore_index=True)
-        save_csv(df_barang, FILE_BARANG)
-        github_upload(FILE_BARANG, commit_msg=f"Update barang {tgl_b}")
-        st.success("Data barang berhasil disimpan!")
-
-st.write(df_barang)
-```
-
-# =====================================================
-
-# LAPORAN
-
-# =====================================================
-
-elif menu == "📄 Laporan":
-st.header("📄 Laporan Keuangan")
-if len(df_keu) > 0:
-df_show = df_keu.copy()
-df_show["Bukti"] = df_show["bukti_url"].apply(preview_link)
-st.write(df_show.to_html(escape=False), unsafe_allow_html=True)
-else:
-st.info("Belum ada data.")
-
-# =====================================================
-
-# LOG
-
-# =====================================================
-
-elif menu == "🧾 Log":
-st.header("🧾 Log Aktivitas")
-st.info("Fitur log akan dibuat jika dibutuhkan.")
