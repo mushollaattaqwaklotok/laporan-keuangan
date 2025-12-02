@@ -1,4 +1,6 @@
-streamlit
-pandas
-matplotlib
+streamlit==1.40.2
+pandas==2.2.3
+numpy==2.1.2
+python-dateutil==2.9.0.post0
+pytz==2024.1
 seaborn
