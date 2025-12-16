@@ -1,3 +1,0 @@
-if row['bukti_penerimaan'] != "":
-    with st.expander("Bukti Penerimaan"):
-        st.image(row['bukti_penerimaan'])
