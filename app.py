@@ -1,6 +1,6 @@
 # =====================================================
 #  APP.PY FINAL – MUSHOLLA AT-TAQWA
-#  ANTI SYNTAX ERROR | HIJAU NU | LOGIN | PDF RESMI
+#  TAMPILAN KEMBALI SEPERTI AWAL | HIJAU NU | PDF LENGKAP
 # =====================================================
 
 import streamlit as st
@@ -15,10 +15,7 @@ from io import BytesIO
 # =====================================================
 BASE_DIR = Path(".")
 DATA_DIR = BASE_DIR / "data"
-UPLOADS_DIR = BASE_DIR / "uploads"
-
 os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 FILE_KEUANGAN = DATA_DIR / "keuangan.csv"
 FILE_BARANG = DATA_DIR / "barang.csv"
@@ -55,10 +52,7 @@ PANITIA = {
 # =====================================================
 #  SETTING STREAMLIT & TEMA HIJAU NU
 # =====================================================
-st.set_page_config(
-    page_title="Manajemen Musholla At-Taqwa",
-    layout="wide"
-)
+st.set_page_config(page_title="Manajemen Musholla At-Taqwa", layout="wide")
 
 st.markdown("""
 <style>
@@ -71,23 +65,26 @@ h1,h2,h3,h4 { color:#0b6e4f; font-weight:800; }
     color:white;
     margin-bottom:18px;
 }
-section[data-testid="stSidebar"] {
-    background:#0b6e4f;
-}
-section[data-testid="stSidebar"] * {
-    color:white !important;
-}
+section[data-testid="stSidebar"] { background:#0b6e4f; }
+section[data-testid="stSidebar"] * { color:white !important; }
 .stButton>button {
     background:linear-gradient(90deg,#0b6e4f,#18a36d);
     color:white;
     font-weight:700;
     border-radius:10px;
 }
+.infocard {
+    background:white;
+    border-radius:14px;
+    padding:18px;
+    border:1px solid #d9e9dd;
+    text-align:center;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # =====================================================
-#  FUNGSI UTIL (HARUS DI ATAS)
+#  UTIL
 # =====================================================
 def read_csv_safe(path):
     try:
@@ -95,36 +92,25 @@ def read_csv_safe(path):
     except:
         return pd.DataFrame()
 
-def save_csv(df, path):
-    df.to_csv(path, index=False)
-
 # =====================================================
-#  LOAD & NORMALISASI DATA KEUANGAN
+#  LOAD & NORMALISASI DATA
 # =====================================================
 df_keu = read_csv_safe(FILE_KEUANGAN)
+df_barang = read_csv_safe(FILE_BARANG)
 
 if not df_keu.empty:
-    df_keu["Kategori"] = (
-        df_keu["Kategori"]
-        .astype(str)
-        .str.strip()
-        .str.lower()
-    )
-
+    df_keu["Kategori"] = df_keu["Kategori"].astype(str).str.strip().str.lower()
     df_keu.loc[df_keu["Kategori"].isin(["kas masuk","kas_masuk"]), "Kategori"] = "Kas_Masuk"
     df_keu.loc[df_keu["Kategori"].isin(["kas keluar","kas_keluar"]), "Kategori"] = "Kas_Keluar"
 
     df_keu["Masuk"] = pd.to_numeric(df_keu["Masuk"], errors="coerce").fillna(0)
     df_keu["Keluar"] = pd.to_numeric(df_keu["Keluar"], errors="coerce").fillna(0)
-
     df_keu["Saldo"] = (df_keu["Masuk"] - df_keu["Keluar"]).cumsum()
 
-df_barang = read_csv_safe(FILE_BARANG)
-
 # =====================================================
-#  FUNGSI GENERATE PDF (HARUS DI ATAS MENU)
+#  FUNGSI PDF (KEUANGAN + BARANG)
 # =====================================================
-def generate_pdf(df):
+def generate_pdf(df_keu, df_barang):
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.pagesizes import A4
@@ -133,49 +119,67 @@ def generate_pdf(df):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
-    elements = []
+    el = []
 
-    elements.append(Paragraph("<b>MUSHOLLA AT-TAQWA</b>", styles["Title"]))
-    elements.append(Paragraph("LAPORAN KEUANGAN RESMI", styles["Heading2"]))
-    elements.append(Paragraph(
-        f"Tanggal Cetak: {datetime.now().strftime('%d %B %Y')}",
-        styles["Normal"]
-    ))
-    elements.append(Spacer(1, 12))
+    el.append(Paragraph("<b>MUSHOLLA AT-TAQWA</b>", styles["Title"]))
+    el.append(Paragraph("LAPORAN KEUANGAN & BARANG MASUK", styles["Heading2"]))
+    el.append(Paragraph(f"Tanggal Cetak: {datetime.now().strftime('%d %B %Y')}", styles["Normal"]))
+    el.append(Spacer(1,12))
 
-    table_data = [["Tanggal","Keterangan","Masuk","Keluar","Saldo"]]
-    for _, r in df.iterrows():
-        table_data.append([
-            r["Tanggal"],
-            r["Keterangan"],
+    # --- TABEL KEUANGAN ---
+    el.append(Paragraph("<b>Laporan Keuangan</b>", styles["Heading3"]))
+    data_keu = [["Tanggal","Keterangan","Masuk","Keluar","Saldo"]]
+    for _, r in df_keu.iterrows():
+        data_keu.append([
+            r["Tanggal"], r["Keterangan"],
             f"{r['Masuk']:,.0f}",
             f"{r['Keluar']:,.0f}",
             f"{r['Saldo']:,.0f}"
         ])
 
-    table = Table(table_data, repeatRows=1)
-    table.setStyle(TableStyle([
+    tbl_keu = Table(data_keu, repeatRows=1)
+    tbl_keu.setStyle(TableStyle([
         ("GRID",(0,0),(-1,-1),0.5,colors.grey),
         ("BACKGROUND",(0,0),(-1,0),colors.lightgrey),
         ("ALIGN",(2,1),(-1,-1),"RIGHT")
     ]))
+    el.append(tbl_keu)
+    el.append(Spacer(1,16))
 
-    elements.append(table)
-    elements.append(Spacer(1, 20))
+    # --- TABEL BARANG ---
+    if not df_barang.empty:
+        el.append(Paragraph("<b>Laporan Barang Masuk</b>", styles["Heading3"]))
+        data_bar = [["Tanggal","Jenis","Keterangan","Jumlah","Satuan"]]
+        for _, r in df_barang.iterrows():
+            data_bar.append([
+                r.get("tanggal",""),
+                r.get("jenis",""),
+                r.get("keterangan",""),
+                r.get("jumlah",""),
+                r.get("satuan","")
+            ])
 
-    elements.append(Paragraph(
+        tbl_bar = Table(data_bar, repeatRows=1)
+        tbl_bar.setStyle(TableStyle([
+            ("GRID",(0,0),(-1,-1),0.5,colors.grey),
+            ("BACKGROUND",(0,0),(-1,0),colors.lightgrey)
+        ]))
+        el.append(tbl_bar)
+
+    el.append(Spacer(1,20))
+    el.append(Paragraph(
         "Ketua: Ferri Kusuma<br/>"
         "Sekretaris: Alfan Fatichul Ichsan<br/>"
         "Bendahara: Sunhadi Prayitno",
         styles["Normal"]
     ))
 
-    doc.build(elements)
+    doc.build(el)
     buffer.seek(0)
     return buffer
 
 # =====================================================
-#  HEADER APLIKASI
+#  HEADER
 # =====================================================
 st.markdown("""
 <div class="header-box">
@@ -188,66 +192,72 @@ Transparansi • Amanah • Profesional
 #  LOGIN
 # =====================================================
 st.sidebar.header("🔐 Login")
-level = st.sidebar.radio(
-    "",
-    ["Publik","Ketua","Sekretaris","Bendahara 1","Bendahara 2","Koor Donasi 1","Koor Donasi 2"]
-)
+level = st.sidebar.radio("", ["Publik","Ketua","Sekretaris","Bendahara 1","Bendahara 2","Koor Donasi 1","Koor Donasi 2"])
 
 if level != "Publik":
-    password = st.sidebar.text_input("Password", type="password")
-    if PANITIA.get(level.lower()) != password:
+    pw = st.sidebar.text_input("Password", type="password")
+    if PANITIA.get(level.lower()) != pw:
         st.warning("❌ Password salah")
         st.stop()
 
-menu = st.sidebar.radio(
-    "📂 Menu",
-    ["💰 Keuangan","📦 Barang Masuk","📄 Laporan","🧾 Log"]
-)
+menu = st.sidebar.radio("📂 Menu", ["💰 Keuangan","📦 Barang Masuk","📄 Laporan","🧾 Log"])
 
 # =====================================================
-#  MENU (BLOK TUNGGAL – ANTI ERROR)
+#  MENU KEUANGAN (RINGKASAN DI ATAS – SEPERTI AWAL)
 # =====================================================
 if menu == "💰 Keuangan":
-    st.subheader("💰 Data Keuangan")
+    st.subheader("💰 Ringkasan Keuangan")
 
-    if df_keu.empty:
-        st.info("Belum ada data keuangan.")
-    else:
-        st.dataframe(df_keu, use_container_width=True)
-
+    if not df_keu.empty:
         col1, col2, col3 = st.columns(3)
-        col1.metric("Total Masuk", f"Rp {df_keu['Masuk'].sum():,.0f}")
-        col2.metric("Total Keluar", f"Rp {df_keu['Keluar'].sum():,.0f}")
-        col3.metric("Saldo Akhir", f"Rp {df_keu['Saldo'].iloc[-1]:,.0f}")
+        col1.markdown(f"<div class='infocard'><h4>Total Masuk</h4><h3>Rp {df_keu['Masuk'].sum():,.0f}</h3></div>", unsafe_allow_html=True)
+        col2.markdown(f"<div class='infocard'><h4>Total Keluar</h4><h3>Rp {df_keu['Keluar'].sum():,.0f}</h3></div>", unsafe_allow_html=True)
+        col3.markdown(f"<div class='infocard'><h4>Saldo Akhir</h4><h3>Rp {df_keu['Saldo'].iloc[-1]:,.0f}</h3></div>", unsafe_allow_html=True)
 
+        st.markdown("### 📄 Detail Transaksi")
+        st.dataframe(df_keu, use_container_width=True)
+    else:
+        st.info("Belum ada data keuangan.")
+
+# =====================================================
+#  MENU BARANG
+# =====================================================
 elif menu == "📦 Barang Masuk":
     st.subheader("📦 Barang Masuk")
-
     if df_barang.empty:
         st.info("Belum ada data barang.")
     else:
         st.dataframe(df_barang, use_container_width=True)
 
+# =====================================================
+#  MENU LAPORAN (KEU + BARANG + PDF)
+# =====================================================
 elif menu == "📄 Laporan":
     st.subheader("📄 Laporan Resmi")
 
-    if df_keu.empty:
-        st.info("Belum ada data.")
+    st.markdown("### 💰 Laporan Keuangan")
+    st.dataframe(df_keu, use_container_width=True)
+
+    st.markdown("### 📦 Laporan Barang Masuk")
+    if df_barang.empty:
+        st.info("Belum ada data barang.")
     else:
-        st.dataframe(df_keu, use_container_width=True)
+        st.dataframe(df_barang, use_container_width=True)
 
-        pdf = generate_pdf(df_keu)
-        st.download_button(
-            "📥 Download Laporan PDF Resmi",
-            data=pdf,
-            file_name="Laporan_Musholla_At-Taqwa.pdf",
-            mime="application/pdf"
-        )
+    pdf = generate_pdf(df_keu, df_barang)
+    st.download_button(
+        "📥 Download Laporan PDF Resmi",
+        data=pdf,
+        file_name="Laporan_Musholla_At-Taqwa.pdf",
+        mime="application/pdf"
+    )
 
+# =====================================================
+#  MENU LOG
+# =====================================================
 elif menu == "🧾 Log":
-    st.subheader("🧾 Log Aktivitas")
-
     df_log = read_csv_safe(FILE_LOG)
+    st.subheader("🧾 Log Aktivitas")
     if df_log.empty:
         st.info("Belum ada log.")
     else:
