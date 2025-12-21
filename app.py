@@ -1,175 +1,207 @@
+# app.py
 import streamlit as st
 import pandas as pd
+import os
 from datetime import datetime
 from pathlib import Path
+from io import BytesIO
 
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.platypus import Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.units import cm
-
-# ===============================
-# KONFIGURASI
-# ===============================
+# =====================================================
+#  KONFIGURASI AWAL
+# =====================================================
 BASE_DIR = Path(".")
 DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
+UPLOADS_DIR = BASE_DIR / "uploads"
+UPLOADS_KEU = UPLOADS_DIR / "keuangan"
+UPLOADS_BAR = UPLOADS_DIR / "barang"
 
-FILE_KEU = DATA_DIR / "keuangan.csv"
-FILE_BARANG = DATA_DIR / "barang_masuk.csv"
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+os.makedirs(UPLOADS_KEU, exist_ok=True)
+os.makedirs(UPLOADS_BAR, exist_ok=True)
 
-# ===============================
-# TAMPILAN HIJAU NU
-# ===============================
-st.set_page_config("Sistem Keuangan Musholla", layout="wide")
+FILE_KEUANGAN = DATA_DIR / "keuangan.csv"
+FILE_BARANG = DATA_DIR / "barang.csv"
+FILE_LOG = DATA_DIR / "log_aktivitas.csv"
+
+if not FILE_KEUANGAN.exists():
+    pd.DataFrame(columns=["Tanggal","Keterangan","Kategori","Masuk","Keluar","Saldo","bukti_url"]).to_csv(FILE_KEUANGAN, index=False)
+if not FILE_BARANG.exists():
+    pd.DataFrame(columns=["tanggal","jenis","keterangan","jumlah","satuan","bukti","bukti_penerimaan"]).to_csv(FILE_BARANG, index=False)
+if not FILE_LOG.exists():
+    pd.DataFrame(columns=["Waktu","User","Aktivitas"]).to_csv(FILE_LOG, index=False)
+
+PANITIA = {
+    "ketua": "kelas3ku",
+    "sekretaris": "fatik3762",
+    "bendahara 1": "hadi5028",
+    "bendahara 2": "riki6522",
+    "koor donasi 1": "bayu0255",
+    "koor donasi 2": "roni9044"
+}
+
+# =====================================================
+#  UI (Hijau NU)
+# =====================================================
+st.set_page_config(page_title="Manajemen At-Taqwa", layout="wide")
+
 st.markdown("""
 <style>
-.stApp { background-color: #e9f5ee; }
+.stApp { background-color: #f1f6f2 !important; }
+h1,h2,h3,h4 { color:#0b6e4f !important; font-weight:800; }
+.header-box {
+    background: linear-gradient(90deg,#0b6e4f,#18a36d);
+    padding:22px; border-radius:14px;
+    color:white; margin-bottom:16px;
+}
+section[data-testid="stSidebar"] { background:#0b6e4f; padding:20px; }
+section[data-testid="stSidebar"] * { color:white !important; }
+.stButton>button {
+    background: linear-gradient(90deg,#0b6e4f,#18a36d);
+    color:white; font-weight:700;
+    border-radius:10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📊 Sistem Keuangan Musholla At-Taqwa")
+# =====================================================
+#  UTIL
+# =====================================================
+def read_csv_safe(path):
+    try:
+        return pd.read_csv(path) if path.exists() else pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
 
-menu = st.sidebar.selectbox(
-    "📌 Menu",
-    ["🏠 Beranda", "💰 Keuangan", "📦 Barang Masuk", "📄 Laporan"]
-)
+def save_csv(df, path):
+    df.to_csv(path, index=False)
 
-# ===============================
-# LOAD DATA
-# ===============================
-def load_csv(file, cols):
-    return pd.read_csv(file) if file.exists() else pd.DataFrame(columns=cols)
+def preview_link(url):
+    if pd.isna(url) or url == "":
+        return "-"
+    return f"<a href='{url}' target='_blank'>Lihat Bukti</a>"
 
-df_keu = load_csv(FILE_KEU, ["Tanggal", "Uraian", "Masuk", "Keluar"])
-df_barang = load_csv(FILE_BARANG, ["Tanggal", "Nama Barang", "Jumlah", "Keterangan"])
+def save_uploaded_file(uploaded, dest):
+    if not uploaded:
+        return ""
+    path = dest / uploaded.name
+    with open(path, "wb") as f:
+        f.write(uploaded.getbuffer())
+    return str(path)
 
-def save_csv(df, file):
-    df.to_csv(file, index=False)
+# =====================================================
+#  PDF GENERATOR (AMAN)
+# =====================================================
+def generate_pdf(df_keu, df_barang):
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+    except Exception:
+        return None
 
-# ===============================
-# MENU BERANDA
-# ===============================
-if menu == "🏠 Beranda":
-    st.success("Selamat datang di Sistem Keuangan Musholla At-Taqwa")
-
-# ===============================
-# MENU KEUANGAN
-# ===============================
-elif menu == "💰 Keuangan":
-    st.subheader("💰 Input Keuangan")
-
-    with st.form("form_keu"):
-        tgl = st.date_input("Tanggal", datetime.now())
-        uraian = st.text_input("Uraian")
-        masuk = st.number_input("Masuk", 0)
-        keluar = st.number_input("Keluar", 0)
-        simpan = st.form_submit_button("💾 Simpan")
-
-    if simpan:
-        df_keu.loc[len(df_keu)] = [
-            tgl.strftime("%Y-%m-%d"), uraian, masuk, keluar
-        ]
-        save_csv(df_keu, FILE_KEU)
-        st.success("Data tersimpan")
-
-    st.dataframe(df_keu, use_container_width=True)
-
-# ===============================
-# MENU BARANG MASUK
-# ===============================
-elif menu == "📦 Barang Masuk":
-    st.subheader("📦 Barang Masuk")
-
-    with st.form("form_barang"):
-        tgl = st.date_input("Tanggal", datetime.now())
-        nama = st.text_input("Nama Barang")
-        jumlah = st.number_input("Jumlah", 1)
-        ket = st.text_input("Keterangan")
-        simpan = st.form_submit_button("💾 Simpan")
-
-    if simpan:
-        df_barang.loc[len(df_barang)] = [
-            tgl.strftime("%Y-%m-%d"), nama, jumlah, ket
-        ]
-        save_csv(df_barang, FILE_BARANG)
-        st.success("Barang tersimpan")
-
-    st.dataframe(df_barang, use_container_width=True)
-
-# ===============================
-# PDF
-# ===============================
-def generate_pdf():
-    file = "Laporan_Musholla_At_Taqwa.pdf"
-    c = canvas.Canvas(file, pagesize=A4)
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
     w, h = A4
+    y = h - 50
 
-    c.setFillColor(colors.darkgreen)
-    c.circle(2*cm, h-2*cm, 1*cm, fill=1)
-
-    c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(4*cm, h-2*cm, "MUSHOLLA AT-TAQWA")
+    c.drawCentredString(w/2, y, "MUSHOLLA AT-TAQWA")
+    y -= 20
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(w/2, y, "LAPORAN KEUANGAN & BARANG MASUK")
+    y -= 15
+    c.drawCentredString(w/2, y, f"Tanggal Cetak: {datetime.now().strftime('%d %B %Y')}")
+    y -= 30
 
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "LAPORAN KEUANGAN")
+    y -= 15
     c.setFont("Helvetica", 9)
-    c.drawRightString(
-        w-2*cm, h-2.7*cm,
-        f"Tanggal Cetak: {datetime.now().strftime('%d-%m-%Y %H:%M')}"
-    )
 
-    y = h - 4*cm
+    for _, r in df_keu.iterrows():
+        c.drawString(40, y, f"{r['Tanggal']} | {r['Keterangan']} | +{int(r['Masuk'])} | -{int(r['Keluar'])} | {int(r['Saldo'])}")
+        y -= 12
+        if y < 100:
+            c.showPage()
+            y = h - 50
 
-    def draw_table(title, df, colw):
-        nonlocal y
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(2*cm, y, title)
-        y -= 0.7*cm
+    y -= 20
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "BARANG MASUK")
+    y -= 15
+    c.setFont("Helvetica", 9)
 
-        data = [df.columns.tolist()] + df.values.tolist()
-        table = Table(data, colWidths=colw)
-        table.setStyle(TableStyle([
-            ("GRID", (0,0), (-1,-1), 0.5, colors.black),
-            ("BACKGROUND", (0,0), (-1,0), colors.lightgreen),
-        ]))
-        table.wrapOn(c, w, h)
-        table.drawOn(c, 2*cm, y - len(data)*0.45*cm)
-        y -= (len(data)+2)*0.45*cm
+    for _, r in df_barang.iterrows():
+        c.drawString(40, y, f"{r['tanggal']} | {r['jenis']} | {r['jumlah']} {r['satuan']}")
+        y -= 12
+        if y < 100:
+            c.showPage()
+            y = h - 50
 
-    draw_table("A. Laporan Keuangan", df_keu, [3*cm, 6*cm, 3*cm, 3*cm])
-    draw_table("B. Barang Masuk", df_barang, [3*cm, 6*cm, 2*cm, 4*cm])
-
-    y -= 1.5*cm
-    c.drawString(2*cm, y, "Ketua")
-    c.drawString(8*cm, y, "Sekretaris")
-    c.drawString(14*cm, y, "Bendahara")
-
-    y -= 2*cm
+    y = 120
+    c.drawString(40, y, "Ketua")
+    c.drawString(220, y, "Sekretaris")
+    c.drawString(400, y, "Bendahara")
+    y -= 40
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(2*cm, y, "Ferri Kusuma")
-    c.drawString(8*cm, y, "Alfan Fatichul Ichsan")
-    c.drawString(14*cm, y, "Sunhadi Prayitno")
+    c.drawString(40, y, "Ferri Kusuma")
+    c.drawString(220, y, "Alfan Fatichul Ichsan")
+    c.drawString(400, y, "Sunhadi Prayitno")
 
-    c.showPage()
     c.save()
-    return file
+    buffer.seek(0)
+    return buffer
 
-# ===============================
-# MENU LAPORAN
-# ===============================
-elif menu == "📄 Laporan":
-    st.subheader("📄 Laporan")
+# =====================================================
+#  LOAD DATA
+# =====================================================
+df_keu = read_csv_safe(FILE_KEUANGAN)
+df_barang = read_csv_safe(FILE_BARANG)
+df_log = read_csv_safe(FILE_LOG)
 
-    st.dataframe(df_keu, use_container_width=True)
-    st.dataframe(df_barang, use_container_width=True)
+# =====================================================
+#  HEADER
+# =====================================================
+st.markdown("""
+<div class="header-box">
+<h2>Laporan Keuangan Musholla At-Taqwa</h2>
+<p>Transparansi • Amanah • Profesional</p>
+</div>
+""", unsafe_allow_html=True)
 
-    if st.button("📄 Download Laporan PDF Resmi"):
-        pdf = generate_pdf()
-        with open(pdf, "rb") as f:
+# =====================================================
+#  LOGIN
+# =====================================================
+level = st.sidebar.radio("Login sebagai:", ["Publik","Ketua","Sekretaris","Bendahara 1","Bendahara 2","Koor Donasi 1","Koor Donasi 2"])
+
+if level != "Publik":
+    pw = st.sidebar.text_input("Password", type="password")
+    if level.lower() not in PANITIA or pw != PANITIA[level.lower()]:
+        st.stop()
+
+menu = st.sidebar.radio("Menu", ["💰 Keuangan","📦 Barang Masuk","📄 Laporan","🧾 Log"])
+
+# =====================================================
+#  MENU LAPORAN (PDF ADA DI SINI)
+# =====================================================
+if menu == "📄 Laporan":
+    st.header("📄 Laporan Resmi")
+
+    if not df_keu.empty:
+        df_show = df_keu.copy()
+        df_show["Bukti"] = df_show["bukti_url"].apply(preview_link)
+        st.markdown(df_show.to_html(escape=False), unsafe_allow_html=True)
+
+        st.markdown("### 📥 Unduh Laporan PDF")
+        pdf = generate_pdf(df_keu, df_barang)
+        if pdf:
             st.download_button(
-                "⬇️ Klik Download PDF",
-                f,
-                file_name=pdf,
+                "⬇️ Download Laporan PDF Resmi",
+                data=pdf,
+                file_name="Laporan_Musholla_At-Taqwa.pdf",
                 mime="application/pdf"
             )
+        else:
+            st.warning("PDF belum aktif (library belum tersedia di server).")
+    else:
+        st.info("Belum ada data.")
