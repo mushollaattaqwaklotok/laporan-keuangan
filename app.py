@@ -1,207 +1,183 @@
-# app.py
 import streamlit as st
 import pandas as pd
-import os
 from datetime import datetime
 from pathlib import Path
 from io import BytesIO
 
-# =====================================================
-#  KONFIGURASI AWAL
-# =====================================================
-BASE_DIR = Path(".")
-DATA_DIR = BASE_DIR / "data"
-UPLOADS_DIR = BASE_DIR / "uploads"
-UPLOADS_KEU = UPLOADS_DIR / "keuangan"
-UPLOADS_BAR = UPLOADS_DIR / "barang"
+# ===============================
+# KONFIGURASI DASAR
+# ===============================
+st.set_page_config(page_title="Laporan Keuangan Musholla At-Taqwa", layout="wide")
 
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(UPLOADS_DIR, exist_ok=True)
-os.makedirs(UPLOADS_KEU, exist_ok=True)
-os.makedirs(UPLOADS_BAR, exist_ok=True)
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
 
-FILE_KEUANGAN = DATA_DIR / "keuangan.csv"
-FILE_BARANG = DATA_DIR / "barang.csv"
-FILE_LOG = DATA_DIR / "log_aktivitas.csv"
+FILE_KEU = DATA_DIR / "keuangan.csv"
+FILE_BARANG = DATA_DIR / "barang_masuk.csv"
 
-if not FILE_KEUANGAN.exists():
-    pd.DataFrame(columns=["Tanggal","Keterangan","Kategori","Masuk","Keluar","Saldo","bukti_url"]).to_csv(FILE_KEUANGAN, index=False)
-if not FILE_BARANG.exists():
-    pd.DataFrame(columns=["tanggal","jenis","keterangan","jumlah","satuan","bukti","bukti_penerimaan"]).to_csv(FILE_BARANG, index=False)
-if not FILE_LOG.exists():
-    pd.DataFrame(columns=["Waktu","User","Aktivitas"]).to_csv(FILE_LOG, index=False)
-
-PANITIA = {
-    "ketua": "kelas3ku",
-    "sekretaris": "fatik3762",
-    "bendahara 1": "hadi5028",
-    "bendahara 2": "riki6522",
-    "koor donasi 1": "bayu0255",
-    "koor donasi 2": "roni9044"
-}
-
-# =====================================================
-#  UI (Hijau NU)
-# =====================================================
-st.set_page_config(page_title="Manajemen At-Taqwa", layout="wide")
-
+# ===============================
+# WARNA HIJAU NU (AMAN)
+# ===============================
 st.markdown("""
 <style>
-.stApp { background-color: #f1f6f2 !important; }
-h1,h2,h3,h4 { color:#0b6e4f !important; font-weight:800; }
-.header-box {
-    background: linear-gradient(90deg,#0b6e4f,#18a36d);
-    padding:22px; border-radius:14px;
-    color:white; margin-bottom:16px;
-}
-section[data-testid="stSidebar"] { background:#0b6e4f; padding:20px; }
-section[data-testid="stSidebar"] * { color:white !important; }
-.stButton>button {
-    background: linear-gradient(90deg,#0b6e4f,#18a36d);
-    color:white; font-weight:700;
-    border-radius:10px;
-}
+body { background-color: #f5fff7; }
+h1, h2, h3 { color: #0b6b3a; }
+.stButton>button { background-color:#0b6b3a; color:white; }
 </style>
 """, unsafe_allow_html=True)
 
-# =====================================================
-#  UTIL
-# =====================================================
-def read_csv_safe(path):
-    try:
-        return pd.read_csv(path) if path.exists() else pd.DataFrame()
-    except Exception:
-        return pd.DataFrame()
+# ===============================
+# DATA DEFAULT (AMAN JIKA FILE BELUM ADA)
+# ===============================
+if not FILE_KEU.exists():
+    pd.DataFrame(columns=["Tanggal", "Keterangan", "Masuk", "Keluar", "Saldo"]).to_csv(FILE_KEU, index=False)
 
-def save_csv(df, path):
-    df.to_csv(path, index=False)
+if not FILE_BARANG.exists():
+    pd.DataFrame(columns=["Tanggal", "Nama Barang", "Jumlah", "Satuan", "Keterangan"]).to_csv(FILE_BARANG, index=False)
 
-def preview_link(url):
-    if pd.isna(url) or url == "":
-        return "-"
-    return f"<a href='{url}' target='_blank'>Lihat Bukti</a>"
+df_keu = pd.read_csv(FILE_KEU)
+df_barang = pd.read_csv(FILE_BARANG)
 
-def save_uploaded_file(uploaded, dest):
-    if not uploaded:
-        return ""
-    path = dest / uploaded.name
-    with open(path, "wb") as f:
-        f.write(uploaded.getbuffer())
-    return str(path)
+# ===============================
+# HEADER
+# ===============================
+st.title("📊 Sistem Keuangan Musholla At-Taqwa")
 
-# =====================================================
-#  PDF GENERATOR (AMAN)
-# =====================================================
-def generate_pdf(df_keu, df_barang):
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas
-    except Exception:
-        return None
+menu = st.sidebar.radio(
+    "Menu",
+    ["💰 Keuangan", "📦 Barang Masuk", "📄 Laporan"]
+)
+
+# ===============================
+# MENU KEUANGAN
+# ===============================
+if menu == "💰 Keuangan":
+    st.subheader("💰 Data Keuangan")
+    st.dataframe(df_keu, use_container_width=True)
+
+# ===============================
+# MENU BARANG MASUK
+# ===============================
+if menu == "📦 Barang Masuk":
+    st.subheader("📦 Data Barang Masuk")
+    st.dataframe(df_barang, use_container_width=True)
+
+# ===============================
+# FUNGSI PDF OPSI B (TABEL RAPI)
+# ===============================
+def generate_pdf_laporan(df_keu, df_barang):
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
 
     buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    w, h = A4
-    y = h - 50
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36
+    )
 
-    c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(w/2, y, "MUSHOLLA AT-TAQWA")
-    y -= 20
-    c.setFont("Helvetica", 10)
-    c.drawCentredString(w/2, y, "LAPORAN KEUANGAN & BARANG MASUK")
-    y -= 15
-    c.drawCentredString(w/2, y, f"Tanggal Cetak: {datetime.now().strftime('%d %B %Y')}")
-    y -= 30
+    styles = getSampleStyleSheet()
+    elements = []
 
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(40, y, "LAPORAN KEUANGAN")
-    y -= 15
-    c.setFont("Helvetica", 9)
+    # ===== LOGO KREASI SEDERHANA =====
+    title_style = ParagraphStyle(
+        "TitleCenter",
+        parent=styles["Title"],
+        alignment=1,
+        textColor=colors.HexColor("#0b6b3a")
+    )
 
+    elements.append(Paragraph("MUSHOLLA AT-TAQWA", title_style))
+    elements.append(Paragraph("<b>LAPORAN KEUANGAN & BARANG MASUK</b>", styles["Heading2"]))
+    elements.append(Paragraph(
+        f"Periode: s.d. {datetime.now().strftime('%d %B %Y')}<br/>Tanggal Cetak: {datetime.now().strftime('%d %B %Y')}",
+        styles["Normal"]
+    ))
+    elements.append(Spacer(1, 12))
+
+    # ===== TABEL KEUANGAN =====
+    elements.append(Paragraph("<b>A. Laporan Keuangan</b>", styles["Heading3"]))
+
+    table_data = [["Tanggal", "Keterangan", "Masuk (Rp)", "Keluar (Rp)", "Saldo (Rp)"]]
     for _, r in df_keu.iterrows():
-        c.drawString(40, y, f"{r['Tanggal']} | {r['Keterangan']} | +{int(r['Masuk'])} | -{int(r['Keluar'])} | {int(r['Saldo'])}")
-        y -= 12
-        if y < 100:
-            c.showPage()
-            y = h - 50
+        table_data.append([
+            r["Tanggal"],
+            r["Keterangan"],
+            f"{int(r['Masuk']):,}" if pd.notna(r["Masuk"]) else "-",
+            f"{int(r['Keluar']):,}" if pd.notna(r["Keluar"]) else "-",
+            f"{int(r['Saldo']):,}" if pd.notna(r["Saldo"]) else "-"
+        ])
 
-    y -= 20
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(40, y, "BARANG MASUK")
-    y -= 15
-    c.setFont("Helvetica", 9)
+    table = Table(table_data, colWidths=[70, 180, 80, 80, 80])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+        ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+        ("ALIGN", (2,1), (-1,-1), "RIGHT"),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("FONT", (0,0), (-1,0), "Helvetica-Bold")
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 16))
 
+    # ===== TABEL BARANG MASUK =====
+    elements.append(Paragraph("<b>B. Barang Masuk</b>", styles["Heading3"]))
+
+    table_barang = [["Tanggal", "Nama Barang", "Jumlah", "Satuan", "Keterangan"]]
     for _, r in df_barang.iterrows():
-        c.drawString(40, y, f"{r['tanggal']} | {r['jenis']} | {r['jumlah']} {r['satuan']}")
-        y -= 12
-        if y < 100:
-            c.showPage()
-            y = h - 50
+        table_barang.append([
+            r["Tanggal"],
+            r["Nama Barang"],
+            r["Jumlah"],
+            r["Satuan"],
+            r["Keterangan"]
+        ])
 
-    y = 120
-    c.drawString(40, y, "Ketua")
-    c.drawString(220, y, "Sekretaris")
-    c.drawString(400, y, "Bendahara")
-    y -= 40
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(40, y, "Ferri Kusuma")
-    c.drawString(220, y, "Alfan Fatichul Ichsan")
-    c.drawString(400, y, "Sunhadi Prayitno")
+    tb = Table(table_barang, colWidths=[70, 140, 60, 60, 120])
+    tb.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+        ("GRID", (0,0), (-1,-1), 0.5, colors.grey),
+        ("FONT", (0,0), (-1,0), "Helvetica-Bold")
+    ]))
+    elements.append(tb)
+    elements.append(Spacer(1, 24))
 
-    c.save()
+    # ===== TTD =====
+    ttd = Table([
+        ["Ketua", "Sekretaris", "Bendahara"],
+        ["", "", ""],
+        ["Ferri Kusuma", "Alfan Fatichul Ichsan", "Sunhadi Prayitno"]
+    ], colWidths=[170, 170, 170])
+
+    ttd.setStyle(TableStyle([
+        ("ALIGN", (0,0), (-1,-1), "CENTER"),
+        ("TOPPADDING", (0,1), (-1,1), 30),
+        ("FONT", (0,2), (-1,2), "Helvetica-Bold")
+    ]))
+
+    elements.append(ttd)
+
+    doc.build(elements)
     buffer.seek(0)
     return buffer
 
-# =====================================================
-#  LOAD DATA
-# =====================================================
-df_keu = read_csv_safe(FILE_KEUANGAN)
-df_barang = read_csv_safe(FILE_BARANG)
-df_log = read_csv_safe(FILE_LOG)
-
-# =====================================================
-#  HEADER
-# =====================================================
-st.markdown("""
-<div class="header-box">
-<h2>Laporan Keuangan Musholla At-Taqwa</h2>
-<p>Transparansi • Amanah • Profesional</p>
-</div>
-""", unsafe_allow_html=True)
-
-# =====================================================
-#  LOGIN
-# =====================================================
-level = st.sidebar.radio("Login sebagai:", ["Publik","Ketua","Sekretaris","Bendahara 1","Bendahara 2","Koor Donasi 1","Koor Donasi 2"])
-
-if level != "Publik":
-    pw = st.sidebar.text_input("Password", type="password")
-    if level.lower() not in PANITIA or pw != PANITIA[level.lower()]:
-        st.stop()
-
-menu = st.sidebar.radio("Menu", ["💰 Keuangan","📦 Barang Masuk","📄 Laporan","🧾 Log"])
-
-# =====================================================
-#  MENU LAPORAN (PDF ADA DI SINI)
-# =====================================================
+# ===============================
+# MENU LAPORAN (TAMBAH PDF SAJA)
+# ===============================
 if menu == "📄 Laporan":
-    st.header("📄 Laporan Resmi")
+    st.subheader("📄 Laporan Resmi")
 
-    if not df_keu.empty:
-        df_show = df_keu.copy()
-        df_show["Bukti"] = df_show["bukti_url"].apply(preview_link)
-        st.markdown(df_show.to_html(escape=False), unsafe_allow_html=True)
+    st.info("Gunakan tombol di bawah untuk mengunduh laporan PDF resmi (format tabel rapi, siap cetak).")
 
-        st.markdown("### 📥 Unduh Laporan PDF")
-        pdf = generate_pdf(df_keu, df_barang)
-        if pdf:
-            st.download_button(
-                "⬇️ Download Laporan PDF Resmi",
-                data=pdf,
-                file_name="Laporan_Musholla_At-Taqwa.pdf",
-                mime="application/pdf"
-            )
-        else:
-            st.warning("PDF belum aktif (library belum tersedia di server).")
-    else:
-        st.info("Belum ada data.")
+    pdf_bytes = generate_pdf_laporan(df_keu, df_barang)
+
+    st.download_button(
+        label="📥 Download Laporan PDF Resmi",
+        data=pdf_bytes,
+        file_name="Laporan_Musholla_At-Taqwa.pdf",
+        mime="application/pdf"
+    )
